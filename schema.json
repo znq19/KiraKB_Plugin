@@ -1,0 +1,61 @@
+{
+    "knowledge_base_dir": {
+        "name": "知识库存储目录",
+        "type": "string",
+        "default": null,
+        "hint": "知识库文件存储的根目录（留空则使用 data/knowledge_base）"
+    },
+    "chunk_size": {
+        "name": "分块大小（字符）",
+        "type": "integer",
+        "default": 500,
+        "minimum": 100,
+        "hint": "文档分块的字符数。"
+    },
+    "chunk_overlap": {
+        "name": "分块重叠（字符）",
+        "type": "integer",
+        "default": 50,
+        "minimum": 0,
+        "hint": "相邻块之间的重叠字符数。"
+    },
+    "default_top_k": {
+        "name": "默认检索结果数",
+        "type": "integer",
+        "default": 5,
+        "minimum": 1,
+        "hint": "知识库检索返回的默认文档块数量。"
+    },
+    "enable_hybrid_search": {
+        "name": "启用混合检索（BM25 + 向量）",
+        "type": "switch",
+        "default": true,
+        "hint": "是否启用 BM25 关键词检索与向量检索的融合。"
+    },
+    "enable_rerank": {
+        "name": "启用重排序",
+        "type": "switch",
+        "default": false,
+        "hint": "是否对检索结果进行重排序。重排序模型将使用 KiraAI 默认配置。"
+    },
+    "webui_port": {
+        "name": "知识库管理 WebUI 端口",
+        "type": "integer",
+        "default": 19122,
+        "minimum": 0,
+        "maximum": 65535,
+        "hint": "独立管理界面的端口（0 = 禁用）。"
+    },
+    "webui_host": {
+        "name": "WebUI 绑定地址",
+        "type": "string",
+        "default": "127.0.0.1",
+        "hint": "WebUI 绑定的 IP 地址，127.0.0.1 仅本机访问。"
+    },
+    "webui_token": {
+        "name": "WebUI 访问令牌",
+        "type": "string",
+        "default": "",
+        "hint": "访问管理界面所需的 Bearer Token（留空则无认证）。"
+    }
+}

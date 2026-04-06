@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiraKB 知识库管理</title>
+<link rel="icon" href="data:,">
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Inter', sans-serif;
+  background: #f0f2f5;
+  color: #1e293b;
+  padding: 24px;
+}
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+h1::before {
+  content: "📚";
+  font-size: 2rem;
+}
+.kb-header {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.kb-selector {
+  flex: 2;
+  min-width: 200px;
+}
+select, input, textarea, button {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+button {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+button:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+button.danger {
+  background: #ef4444;
+}
+button.danger:hover {
+  background: #dc2626;
+}
+button.secondary {
+  background: #64748b;
+}
+button.small {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: box-shadow 0.2s;
+}
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.card h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.doc-list, .version-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px;
+}
+.doc-item, .version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.doc-item:last-child, .version-item:last-child {
+  border-bottom: none;
+}
+.doc-name, .version-name {
+  font-weight: 500;
+  word-break: break-all;
+  flex: 1;
+}
+.badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #e2e8f0;
+  color: #1e293b;
+}
+.badge.active {
+  background: #4f46e5;
+  color: white;
+}
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.progress-fill {
+  height: 100%;
+  background: #4f46e5;
+  width: 0%;
+  transition: width 0.3s;
+}
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  width: 600px;
+  max-width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-content h3 {
+  margin-bottom: 16px;
+}
+.modal-content textarea {
+  width: 100%;
+  min-height: 200px;
+  font-family: monospace;
+}
+.task-item {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.task-status {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  display: inline-block;
+}
+.status-running { background: #fef9c3; color: #854d0e; }
+.status-completed { background: #dcfce7; color: #166534; }
+.status-failed { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>KiraKB 知识库管理</h1>
+
+  <div class="kb-header">
+    <div class="kb-selector">
+      <select id="kbSelect" style="width:100%"></select>
+    </div>
+    <button id="createKbBtn">+ 新建知识库</button>
+    <button id="editKbInfoBtn" class="secondary">✎ 编辑信息</button>
+    <button id="deleteKbBtn" class="danger">🗑 删除当前知识库</button>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>📄 文档管理</h3>
+      <div style="margin-bottom: 16px;">
+        <input type="file" id="fileInput" multiple accept=".txt,.md" style="margin-right: 8px;">
+        <button id="uploadBtn">上传</button>
+        <button id="showDeletedBtn" class="secondary small" style="margin-left: 8px;">🗑 显示已删除</button>
+      </div>
+      <div id="docList" class="doc-list">加载中...</div>
+    </div>
+
+    <div class="card">
+      <h3>🔖 版本管理</h3>
+      <div style="margin-bottom: 12px;">
+        <button id="createVersionBtn" class="small">+ 创建新版本（切换模型）</button>
+      </div>
+      <div id="versionList" class="version-list">加载中...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🔍 检索测试（当前激活版本）</h3>
+    <div style="display: flex; gap: 8px;">
+      <input type="text" id="searchQuery" placeholder="输入问题..." style="flex:1">
+      <button id="searchBtn">检索</button>
+    </div>
+    <div id="searchResults" style="margin-top: 16px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>⏳ 后台任务</h3>
+    <div id="taskList">暂无任务</div>
+  </div>
+</div>
+
+<!-- 模态框：编辑知识库信息 -->
+<div id="infoModal" class="modal">
+  <div class="modal-content">
+    <h3>编辑知识库信息</h3>
+    <label>显示名称</label>
+    <input type="text" id="modalDisplayName" placeholder="显示名称">
+    <label>描述</label>
+    <textarea id="modalDescription" rows="3" placeholder="知识库描述"></textarea>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+      <button id="modalCancelBtn">取消</button>
+      <button id="modalSaveBtn" style="background:#4f46e5;">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 模态框：创建版本 -->
+<div id="versionModal" class="modal">
+  <div class="modal-content">
+    <h3>创建新版本</h3>
+    <label>模型名称</label>
+    <input type="text" id="versionModelName" placeholder="例如 BAAI/bge-m3">
+    <label>向量维度</label>
+    <input type="number" id="versionDimension" placeholder="例如 1024">
+    <label>选择文档（可选，留空表示全部）</label>
+    <select id="versionDocSelect" multiple size="5" style="width:100%"></select>
+    <div class="hint" style="font-size:0.8rem; color:#666;">按住 Ctrl 多选</div>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+      <button id="versionModalCancel">取消</button>
+      <button id="versionModalCreate">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 模态框：编辑文档内容 -->
+<div id="docEditModal" class="modal">
+  <div class="modal-content">
+    <h3>编辑文档内容</h3>
+    <textarea id="docEditContent" rows="10" style="width:100%; font-family: monospace;"></textarea>
+    <div class="hint" style="margin: 8px 0;">保存后会自动重新向量化到当前激活版本。</div>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button id="docEditCancel">取消</button>
+      <button id="docEditSave">保存并重新向量化</button>
+    </div>
+  </div>
+</div>
+
+<!-- 模态框：已删除文档列表 -->
+<div id="deletedModal" class="modal">
+  <div class="modal-content">
+    <h3>🗑 已删除文档（可恢复）</h3>
+    <div id="deletedList" style="max-height: 400px; overflow-y: auto;"></div>
+    <div style="margin-top: 16px; text-align: right;">
+      <button id="deletedModalClose" class="secondary">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentKbId = null;
+let token = new URLSearchParams(location.search).get('token') || '';
+if (token) sessionStorage.setItem('kirakb_token', token);
+else token = sessionStorage.getItem('kirakb_token') || '';
+const headers = { 'Content-Type': 'application/json' };
+if (token) headers['Authorization'] = `Bearer ${token}`;
+let taskPollInterval = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, { ...opts, headers });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  return res.json();
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+
+async function loadKBs() {
+  try {
+    const kbs = await api('/kbs');
+    const select = document.getElementById('kbSelect');
+    select.innerHTML = '';
+    if (kbs.length === 0) {
+      select.innerHTML = '<option value="">无知识库，请先创建</option>';
+      currentKbId = null;
+      document.getElementById('docList').innerHTML = '<p>暂无文档</p>';
+      document.getElementById('versionList').innerHTML = '<p>暂无版本</p>';
+      return;
+    }
+    for (const kb of kbs) {
+      const option = document.createElement('option');
+      option.value = kb.kb_id;
+      option.textContent = `${kb.display_name} (${kb.version_count} 版本)`;
+      select.appendChild(option);
+    }
+    if (!currentKbId || !kbs.some(k => k.kb_id === currentKbId)) {
+      currentKbId = kbs[0].kb_id;
+    }
+    select.value = currentKbId;
+    await loadDocuments();
+    await loadVersions();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function loadDocuments() {
+  if (!currentKbId) return;
+  try {
+    const docs = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents`);
+    const container = document.getElementById('docList');
+    if (docs.length === 0) {
+      container.innerHTML = '<p>暂无文档，请上传</p>';
+      return;
+    }
+    container.innerHTML = docs.map(d => `
+      <div class="doc-item">
+        <span class="doc-name">${escapeHtml(d.name)}</span>
+        <div>
+          <button class="small" onclick="editDocument('${d.doc_id}')">编辑</button>
+          <button class="small danger" onclick="deleteDocument('${d.doc_id}')">删除</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('docList').innerHTML = `<p>加载失败: ${e.message}</p>`;
+  }
+}
+
+async function loadVersions() {
+  if (!currentKbId) return;
+  try {
+    const versions = await api(`/kbs/${encodeURIComponent(currentKbId)}/versions`);
+    const container = document.getElementById('versionList');
+    if (versions.length === 0) {
+      container.innerHTML = '<p>暂无版本，请创建新版本</p>';
+      return;
+    }
+    container.innerHTML = versions.map(v => `
+      <div class="version-item">
+        <div class="version-name">
+          <strong>${escapeHtml(v.model_name)}</strong> (${v.dimension}维)
+          <span class="badge ${v.is_active ? 'active' : ''}">${v.is_active ? '当前激活' : ''}</span>
+          <div style="font-size:0.7rem; color:#666;">创建于 ${new Date(v.created_at * 1000).toLocaleString()}</div>
+        </div>
+        <div>
+          ${!v.is_active ? `<button class="small" onclick="activateVersion('${v.version_id}')">激活</button>` : ''}
+          ${!v.is_active ? `<button class="small danger" onclick="deleteVersion('${v.version_id}')">删除</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('versionList').innerHTML = `<p>加载失败: ${e.message}</p>`;
+  }
+}
+
+async function editDocument(docId) {
+  try {
+    const data = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}`);
+    document.getElementById('docEditContent').value = data.content;
+    const modal = document.getElementById('docEditModal');
+    modal.style.display = 'flex';
+    window._currentEditDocId = docId;
+  } catch (e) {
+    alert('获取文档内容失败: ' + e.message);
+  }
+}
+
+async function deleteDocument(docId) {
+  if (!confirm('确定删除此文档？可后续恢复。')) return;
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}`, { method: 'DELETE' });
+    await loadDocuments();
+  } catch (e) {
+    alert('删除失败: ' + e.message);
+  }
+}
+
+async function activateVersion(versionId) {
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}/versions/${versionId}/activate`, { method: 'POST' });
+    await loadVersions();
+    alert('版本已激活，后续检索将使用此版本');
+  } catch (e) {
+    alert('激活失败: ' + e.message);
+  }
+}
+
+async function deleteVersion(versionId) {
+  if (!confirm('确定删除此版本？不可恢复。')) return;
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}/versions/${versionId}`, { method: 'DELETE' });
+    await loadVersions();
+  } catch (e) {
+    alert('删除失败: ' + e.message);
+  }
+}
+
+document.getElementById('createVersionBtn').onclick = async () => {
+  const docs = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents`);
+  const select = document.getElementById('versionDocSelect');
+  select.innerHTML = docs.map(d => `<option value="${d.doc_id}">${escapeHtml(d.name)}</option>`).join('');
+  document.getElementById('versionModal').style.display = 'flex';
+};
+
+document.getElementById('versionModalCreate').onclick = async () => {
+  const modelName = document.getElementById('versionModelName').value.trim();
+  const dimension = parseInt(document.getElementById('versionDimension').value);
+  if (!modelName || isNaN(dimension)) {
+    alert('请填写模型名称和维度');
+    return;
+  }
+  const select = document.getElementById('versionDocSelect');
+  const selectedOptions = Array.from(select.selectedOptions);
+  const docIds = selectedOptions.map(opt => opt.value);
+  const payload = { model_name: modelName, dimension: dimension };
+  if (docIds.length > 0) payload.doc_ids = docIds;
+  try {
+    const res = await api(`/kbs/${encodeURIComponent(currentKbId)}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    alert(`任务已创建，ID: ${res.task_id}，请稍后在任务列表中查看进度`);
+    document.getElementById('versionModal').style.display = 'none';
+    startTaskPolling();
+  } catch (e) {
+    alert('创建失败: ' + e.message);
+  }
+};
+
+document.getElementById('uploadBtn').onclick = async () => {
+  const files = document.getElementById('fileInput').files;
+  if (!files.length) return;
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`/api/kbs/${encodeURIComponent(currentKbId)}/documents`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData
+    });
+    if (!res.ok) alert(`上传 ${file.name} 失败: ${await res.text()}`);
+    else alert(`上传 ${file.name} 成功`);
+  }
+  await loadDocuments();
+};
+
+document.getElementById('searchBtn').onclick = async () => {
+  const query = document.getElementById('searchQuery').value;
+  if (!query) return;
+  try {
+    const results = await api(`/kbs/${encodeURIComponent(currentKbId)}/search`, {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: 5 })
+    });
+    const container = document.getElementById('searchResults');
+    if (results.length === 0) {
+      container.innerHTML = '<p>未找到相关结果</p>';
+      return;
+    }
+    container.innerHTML = results.map(r => `
+      <div style="background:#f8fafc; padding:12px; border-radius:12px; margin-bottom:8px;">
+        <strong>${escapeHtml(r.doc_name)}</strong> (相关度: ${r.score.toFixed(2)})<br>
+        ${escapeHtml(r.content.substring(0, 300))}...
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('searchResults').innerHTML = `<p>检索失败: ${e.message}</p>`;
+  }
+};
+
+document.getElementById('editKbInfoBtn').onclick = async () => {
+  if (!currentKbId) return;
+  const info = await api(`/kbs/${encodeURIComponent(currentKbId)}/info`);
+  document.getElementById('modalDisplayName').value = info.display_name || '';
+  document.getElementById('modalDescription').value = info.description || '';
+  document.getElementById('infoModal').style.display = 'flex';
+};
+
+document.getElementById('modalSaveBtn').onclick = async () => {
+  const displayName = document.getElementById('modalDisplayName').value.trim();
+  const description = document.getElementById('modalDescription').value.trim();
+  await api(`/kbs/${encodeURIComponent(currentKbId)}/info`, {
+    method: 'PUT',
+    body: JSON.stringify({ display_name: displayName, description: description })
+  });
+  document.getElementById('infoModal').style.display = 'none';
+  await loadKBs();
+};
+
+document.getElementById('createKbBtn').onclick = async () => {
+  const name = prompt('输入知识库 ID (英文，数字，下划线，连字符)');
+  if (!name) return;
+  try {
+    await api('/kbs', { method: 'POST', body: JSON.stringify({ kb_id: name }) });
+    await loadKBs();
+  } catch (e) {
+    alert('创建失败: ' + e.message);
+  }
+};
+
+document.getElementById('deleteKbBtn').onclick = async () => {
+  if (!currentKbId) return;
+  if (!confirm(`删除知识库 ${currentKbId} 将删除所有文档和版本，不可恢复！`)) return;
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}`, { method: 'DELETE' });
+    currentKbId = null;
+    await loadKBs();
+  } catch (e) {
+    alert('删除失败: ' + e.message);
+  }
+};
+
+document.getElementById('kbSelect').onchange = () => {
+  currentKbId = document.getElementById('kbSelect').value;
+  loadDocuments();
+  loadVersions();
+};
+
+function closeModals() {
+  document.getElementById('infoModal').style.display = 'none';
+  document.getElementById('versionModal').style.display = 'none';
+  document.getElementById('docEditModal').style.display = 'none';
+  document.getElementById('deletedModal').style.display = 'none';
+}
+document.getElementById('modalCancelBtn').onclick = closeModals;
+document.getElementById('versionModalCancel').onclick = closeModals;
+document.getElementById('docEditCancel').onclick = closeModals;
+document.getElementById('deletedModalClose').onclick = closeModals;
+window.onclick = (e) => {
+  if (e.target.classList.contains('modal')) closeModals();
+};
+
+document.getElementById('docEditSave').onclick = async () => {
+  const newContent = document.getElementById('docEditContent').value;
+  const docId = window._currentEditDocId;
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content: newContent })
+    });
+    alert('文档已更新并重新向量化');
+    closeModals();
+    await loadDocuments();
+  } catch (e) {
+    alert('保存失败: ' + e.message);
+  }
+};
+
+async function loadDeletedDocuments() {
+  if (!currentKbId) return;
+  try {
+    const docs = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/deleted`);
+    const container = document.getElementById('deletedList');
+    if (docs.length === 0) {
+      container.innerHTML = '<p>暂无已删除文档</p>';
+      return;
+    }
+    container.innerHTML = docs.map(d => `
+      <div class="doc-item">
+        <span>${escapeHtml(d.name)}</span>
+        <button class="small" onclick="restoreDocument('${d.doc_id}')">恢复</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('deletedList').innerHTML = `<p>加载失败: ${e.message}</p>`;
+  }
+}
+
+async function restoreDocument(docId) {
+  try {
+    await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}/restore`, { method: 'POST' });
+    alert('恢复成功，文档将重新向量化。');
+    loadDeletedDocuments();
+    loadDocuments();
+    loadVersions();
+  } catch (e) {
+    alert('恢复失败: ' + e.message);
+  }
+}
+
+document.getElementById('showDeletedBtn').onclick = () => {
+  loadDeletedDocuments();
+  document.getElementById('deletedModal').style.display = 'flex';
+};
+
+async function loadTasks() {
+  try {
+    const tasks = await api('/tasks');
+    const container = document.getElementById('taskList');
+    if (tasks.length === 0) {
+      container.innerHTML = '暂无任务';
+      return;
+    }
+    container.innerHTML = tasks.map(t => `
+      <div class="task-item">
+        <div><strong>${escapeHtml(t.description)}</strong> 
+          <span class="task-status status-${t.status}">${t.status}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: ${t.progress}%"></div></div>
+        <div style="font-size:0.8rem;">${t.message || ''}</div>
+        ${t.result ? `<div style="font-size:0.8rem; color:#166534;">结果: ${JSON.stringify(t.result)}</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('加载任务失败', e);
+  }
+}
+
+function startTaskPolling() {
+  if (taskPollInterval) clearInterval(taskPollInterval);
+  taskPollInterval = setInterval(loadTasks, 2000);
+}
+
+loadKBs();
+startTaskPolling();
+</script>
+</body>
+</html>
