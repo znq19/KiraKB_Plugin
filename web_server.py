@@ -15,6 +15,7 @@ from starlette.routing import Route
 
 from core.logging_manager import get_logger
 from .task_manager import get_task_manager
+from .chunking import RecursiveCharacterChunker
 
 logger = get_logger("kirakb_webui", "cyan")
 
