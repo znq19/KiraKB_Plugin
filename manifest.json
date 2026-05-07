@@ -4,5 +4,5 @@
     "version": "1.0.0",
     "author": "znq19",
     "description": "Powerful knowledge base plugin with hybrid search, online/offline embeddings, document support (PDF, Word, Excel, TXT, MD), WebUI.",
-    "repo": null
+    "repo": "https://github.com/znq19/KiraKB_Plugin"
 }
