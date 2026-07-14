@@ -1,5 +1,7 @@
 # KiraKB (Knowledge Base)插件使用指南
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/znq19/KiraKB_Plugin)
+
 > 为 KiraAI 量身打造的知识库插件 —— 让数字生命们拥有长期记忆的多版本共存可检索与实时操作的知识库
 
 ---
