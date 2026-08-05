@@ -3,6 +3,6 @@
     "plugin_id": "kiraKB",
     "version": "1.0.0",
     "author": "znq19",
-    "description": "Powerful knowledge base plugin with hybrid search, online/offline embeddings, document support (PDF, Word, Excel, TXT, MD), WebUI.",
+    "description": "为 KiraAI 量身打造的知识库插件 —— 让数字生命们拥有长期记忆的多版本共存可检索与实时操作的知识库",
     "repo": "https://github.com/znq19/KiraKB_Plugin"
 }
