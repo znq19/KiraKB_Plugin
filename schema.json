@@ -38,6 +38,12 @@
                 "default": true,
                 "hint": "是否启用 BM25 关键词检索与向量检索的融合。"
             },
+            "enable_stopwords": {
+                "name": "启用停用词过滤",
+                "type": "switch",
+                "default": false,
+                "hint": "是否在 BM25 关键词检索中过滤停用词（内置 stopwords_default.txt + 用户 stopwords.txt）。"
+            },
             "enable_rerank": {
                 "name": "启用重排序",
                 "type": "switch",

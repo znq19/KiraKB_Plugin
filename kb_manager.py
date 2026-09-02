@@ -20,8 +20,8 @@ logger = get_logger("kb_manager", "cyan")
 class KnowledgeBaseVersion:
     def __init__(self, kb_id: str, version_id: str, version_path: Path,
                  model_name: str, dimension: int, created_at: float,
-                 stopwords_path: str = None, rerank_client=None,
-                 enable_rerank: bool = False):
+                 stopwords_path: str = None, default_stopwords_path: str = None,
+                 rerank_client=None, enable_rerank: bool = False):
         self.kb_id = kb_id
         self.version_id = version_id
         self.path = version_path
@@ -31,6 +31,7 @@ class KnowledgeBaseVersion:
         self.vector_store = VectorStore(str(self.path / "vectors"))
         self.retriever = None
         self.stopwords_path = stopwords_path
+        self.default_stopwords_path = default_stopwords_path
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
         self._initialized = False
@@ -38,7 +39,9 @@ class KnowledgeBaseVersion:
     async def initialize(self):
         if not self._initialized:
             await self.vector_store.initialize(self.dimension)
-            self.retriever = HybridRetriever(self.vector_store, self.stopwords_path)
+            self.retriever = HybridRetriever(
+                self.vector_store, self.stopwords_path, self.default_stopwords_path
+            )
             self._initialized = True
 
     async def search(self, query: str, query_embedding: List[float],
@@ -108,7 +111,8 @@ class KnowledgeBaseVersion:
 
 class KnowledgeBase:
     def __init__(self, kb_id: str, kb_dir: Path, embedding_client_getter: Callable,
-                 stopwords_path: str = None, vlm_client=None, rerank_client=None,
+                 stopwords_path: str = None, default_stopwords_path: str = None,
+                 vlm_client=None, rerank_client=None,
                  enable_rerank: bool = False, chunk_size: int = 500,
                  chunk_overlap: int = 50):
         self.kb_id = kb_id
@@ -120,6 +124,7 @@ class KnowledgeBase:
 
         self.embedding_client_getter = embedding_client_getter
         self.stopwords_path = stopwords_path
+        self.default_stopwords_path = default_stopwords_path
         self.vlm_client = vlm_client
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
@@ -185,6 +190,7 @@ class KnowledgeBase:
                     dimension=model_info.get("dimension", 0),
                     created_at=model_info.get("created_at", 0),
                     stopwords_path=self.stopwords_path,
+                    default_stopwords_path=self.default_stopwords_path,
                     rerank_client=self.rerank_client,
                     enable_rerank=self.enable_rerank,
                 )
@@ -235,6 +241,7 @@ class KnowledgeBase:
             dimension=dimension,
             created_at=time.time(),
             stopwords_path=self.stopwords_path,
+            default_stopwords_path=self.default_stopwords_path,
             rerank_client=self.rerank_client,
             enable_rerank=self.enable_rerank,
         )
@@ -412,13 +419,14 @@ class KnowledgeBase:
 
 class KnowledgeBaseManager:
     def __init__(self, base_dir: str, embedding_client_getter: Callable[[], Awaitable],
-                 stopwords_path: str = None, vlm_client=None,
-                 rerank_client=None, enable_rerank: bool = False,
+                 stopwords_path: str = None, default_stopwords_path: str = None,
+                 vlm_client=None, rerank_client=None, enable_rerank: bool = False,
                  chunk_size: int = 500, chunk_overlap: int = 50):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.embedding_client_getter = embedding_client_getter
         self.stopwords_path = stopwords_path
+        self.default_stopwords_path = default_stopwords_path
         self.vlm_client = vlm_client
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
@@ -437,8 +445,8 @@ class KnowledgeBaseManager:
                 continue
             kb = KnowledgeBase(
                 kb_id, subdir, self.embedding_client_getter,
-                self.stopwords_path, self.vlm_client,
-                self.rerank_client, self.enable_rerank,
+                self.stopwords_path, self.default_stopwords_path,
+                self.vlm_client, self.rerank_client, self.enable_rerank,
                 self.chunk_size, self.chunk_overlap,
             )
             await kb.load_versions()
@@ -454,8 +462,8 @@ class KnowledgeBaseManager:
         kb_dir.mkdir(parents=True)
         kb = KnowledgeBase(
             kb_id, kb_dir, self.embedding_client_getter,
-            self.stopwords_path, self.vlm_client,
-            self.rerank_client, self.enable_rerank,
+            self.stopwords_path, self.default_stopwords_path,
+            self.vlm_client, self.rerank_client, self.enable_rerank,
             self.chunk_size, self.chunk_overlap,
         )
         kb.info = {"display_name": kb_id, "description": ""}
@@ -475,4 +483,4 @@ class KnowledgeBaseManager:
 
     async def close_all(self):
         for kb in self.kbs.values():
-            await kb.close()
+            await kb.close()

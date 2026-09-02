@@ -102,6 +102,7 @@ KiraKB/
 | `chunk_overlap` | 分块重叠字符数 | 50 |
 | `default_top_k` | 默认检索结果数量 | 5 |
 | `enable_hybrid_search` | 是否启用 BM25 混合检索 | true |
+| `enable_stopwords` | 是否在 BM25 中过滤停用词（内置 + 自定义） | false |
 | `enable_rerank` | 是否启用重排序（需配置重排序模型） | false |
 
 ### WebUI 设置
