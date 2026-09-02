@@ -108,22 +108,24 @@ class VectorStore:
     async def delete_by_chunk_ids(self, chunk_ids: List[str]) -> int:
         if not chunk_ids:
             return 0
+        # Get database IDs FIRST (before deleting rows)
+        async with self.async_session() as session:
+            stmt = select(DocumentChunk.id).where(DocumentChunk.chunk_id.in_(chunk_ids))
+            result = await session.execute(stmt)
+            ids_to_remove = [row[0] for row in result.fetchall()]
+        # Remove from FAISS index
+        if ids_to_remove:
+            id_array = np.array(ids_to_remove, dtype=np.int64)
+            self.index.remove_ids(id_array)
+            faiss.write_index(self.index, str(self.index_path))
+        # Delete rows from SQLite
         async with self.async_session() as session:
             stmt = delete(DocumentChunk).where(DocumentChunk.chunk_id.in_(chunk_ids))
             result = await session.execute(stmt)
             await session.commit()
             deleted = result.rowcount
-        # Get database IDs for FAISS removal
-        async with self.async_session() as session:
-            stmt = select(DocumentChunk.id).where(DocumentChunk.chunk_id.in_(chunk_ids))
-            result = await session.execute(stmt)
-            ids_to_remove = [row[0] for row in result.fetchall()]
-        if ids_to_remove:
-            id_array = np.array(ids_to_remove, dtype=np.int64)
-            self.index.remove_ids(id_array)
-            faiss.write_index(self.index, str(self.index_path))
         return deleted
 
     async def close(self):
         if self.engine:
-            await self.engine.dispose()
+            await self.engine.dispose()

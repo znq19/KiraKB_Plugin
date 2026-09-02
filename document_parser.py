@@ -1,7 +1,8 @@
+import asyncio
 import io
 import os
 import tempfile
-import json
+
 from pathlib import Path
 from typing import Tuple, List, Optional, Any
 
@@ -58,41 +59,38 @@ class DocumentParser:
     @staticmethod
     async def _parse_pdf_with_vlm(file_path: str, vlm_client) -> Tuple[str, List[bytes]]:
         """
-        使用视觉模型逐页 OCR PDF。
-        vlm_client 需要实现 chat 方法（兼容 LLMModelClient）。
+        Use the vision model to OCR a PDF page by page.
+        vlm_client must implement chat() (LLMModelClient compatible).
         """
         try:
             from pdf2image import convert_from_path
         except ImportError:
             raise ImportError("pdf2image required for OCR. pip install pdf2image")
-        images = convert_from_path(file_path, dpi=200)
+        images = await asyncio.to_thread(convert_from_path, file_path, 200)
         text_parts = []
         for idx, img in enumerate(images):
-            # 保存图片到临时文件
+            # Save page image to a temp file
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 img.save(tmp.name, "PNG")
                 tmp_path = tmp.name
             try:
-                # 读取图片并转为 base64
+                # Read image and convert to base64
                 async with aiofiles.open(tmp_path, "rb") as f:
                     img_bytes = await f.read()
                 import base64
                 img_base64 = base64.b64encode(img_bytes).decode()
                 data_url = f"data:image/png;base64,{img_base64}"
 
-                # 构造视觉请求
+                # Build the vision request (OpenAIMessage-compatible)
                 from core.provider import LLMRequest
-                req = LLMRequest()
-                req.messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "请提取这张图片中的所有文字，按阅读顺序输出，不需要额外解释。"},
-                            {"type": "image_url", "image_url": {"url": data_url}}
-                        ]
-                    }
-                ]
-                # 调用 VLM
+                req = LLMRequest(messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "请提取这张图片中的所有文字，按阅读顺序输出，不需要额外解释。"},
+                        {"type": "image_url", "image_url": {"url": data_url}}
+                    ]
+                }])
+                # Call the VLM
                 resp = await vlm_client.chat(req)
                 text = resp.text_response.strip()
                 if text:
@@ -114,5 +112,5 @@ class DocumentParser:
     @staticmethod
     async def _parse_with_markitdown(file_path: str) -> Tuple[str, List[bytes]]:
         md = MarkItDown(enable_plugins=False)
-        result = md.convert(file_path)
-        return result.markdown, []
+        result = await asyncio.to_thread(md.convert, file_path)
+        return result.markdown, []
