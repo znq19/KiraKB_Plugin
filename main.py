@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 import json
 import re
 from typing import Optional, List
@@ -42,6 +43,7 @@ class KiraKBPlugin(BasePlugin):
             self.chunk_overlap = max(0, self.chunk_size // 5)
         self.default_top_k = int(sec_basic.get("default_top_k", 5))
         self.enable_hybrid = bool(sec_basic.get("enable_hybrid_search", True))
+        self.enable_stopwords = bool(sec_basic.get("enable_stopwords", False))
         self.enable_rerank = bool(sec_basic.get("enable_rerank", False))
 
         self.enable_webui = bool(sec_webui.get("enable_webui", False))
@@ -79,6 +81,7 @@ class KiraKBPlugin(BasePlugin):
                     "chunk_overlap": 100 if old_overlap == 50 else old_overlap,
                     "default_top_k": cfg.get("default_top_k", 5),
                     "enable_hybrid_search": cfg.get("enable_hybrid_search", True),
+                    "enable_stopwords": cfg.get("enable_stopwords", False),
                     "enable_rerank": cfg.get("enable_rerank", False),
                 },
                 "section_webui": {
@@ -158,11 +161,18 @@ class KiraKBPlugin(BasePlugin):
         stopwords_path = self.data_dir / "stopwords.txt"
         if not stopwords_path.exists():
             stopwords_path.touch()
+        default_stopwords_path = Path(__file__).parent / "stopwords_default.txt"
+
+        # Stopword filtering is opt-in (default off) — only load the lists
+        # when the user enables it.
+        sw_path = str(stopwords_path) if (self.enable_stopwords and stopwords_path.exists()) else None
+        dsw_path = str(default_stopwords_path) if (self.enable_stopwords and default_stopwords_path.exists()) else None
 
         self.kb_manager = KnowledgeBaseManager(
             base_dir=self.kb_base_dir,
             embedding_client_getter=get_embedding_client,
-            stopwords_path=str(stopwords_path) if stopwords_path.exists() else None,
+            stopwords_path=sw_path,
+            default_stopwords_path=dsw_path,
             vlm_client=vlm_client,
             rerank_client=rerank_client,
             enable_rerank=self.enable_rerank,
