@@ -20,7 +20,7 @@
             "chunk_overlap": {
                 "name": "分块重叠（字符）",
                 "type": "integer",
-                "default": 50,
+                "default": 100,
                 "minimum": 0,
                 "maximum": 400,
                 "hint": "相邻块之间的重叠字符数（必须小于分块大小）。"

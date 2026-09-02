@@ -37,7 +37,7 @@ class KiraKBPlugin(BasePlugin):
 
         self.kb_base_dir = sec_basic.get("knowledge_base_dir") or str(self.data_dir / "knowledge_base")
         self.chunk_size = int(sec_basic.get("chunk_size", 500))
-        self.chunk_overlap = int(sec_basic.get("chunk_overlap", 50))
+        self.chunk_overlap = int(sec_basic.get("chunk_overlap", 100))
         if self.chunk_overlap >= self.chunk_size:
             self.chunk_overlap = max(0, self.chunk_size // 5)
         self.default_top_k = int(sec_basic.get("default_top_k", 5))
@@ -58,48 +58,63 @@ class KiraKBPlugin(BasePlugin):
         self._bg_tasks: set = set()
 
     # ------------------------------------------------------------------
-    # Config migration: flat (v1.0.0) -> nested sections (v1.1.0)
+    # Config migration: flat (v1.0.0) -> nested sections (v1.1.0),
+    # plus chunk_overlap 50 (old default) -> 100 (new default).
     # ------------------------------------------------------------------
     def _migrate_config(self, cfg: dict):
-        if "section_basic" in cfg:
-            return  # already nested
-        flat_keys = [
-            "knowledge_base_dir", "chunk_size", "chunk_overlap",
-            "default_top_k", "enable_hybrid_search", "enable_rerank",
-            "webui_port", "webui_host", "webui_token",
-        ]
-        if not any(k in cfg for k in flat_keys):
-            return  # nothing to migrate
-        logger.info("[kiraKB] Migrating legacy flat config to nested sections")
-        new_cfg = {
-            "section_basic": {
-                "knowledge_base_dir": cfg.get("knowledge_base_dir"),
-                "chunk_size": cfg.get("chunk_size", 500),
-                "chunk_overlap": cfg.get("chunk_overlap", 50),
-                "default_top_k": cfg.get("default_top_k", 5),
-                "enable_hybrid_search": cfg.get("enable_hybrid_search", True),
-                "enable_rerank": cfg.get("enable_rerank", False),
-            },
-            "section_webui": {
-                "enable_webui": False,
-                "webui_port": cfg.get("webui_port", 19122),
-                "webui_host": cfg.get("webui_host", "127.0.0.1"),
-                "webui_token": cfg.get("webui_token", ""),
-            },
-            "section_permission": {
-                "owner_whitelist": [],
-            },
-        }
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(
-                json.dumps(new_cfg, indent=4, ensure_ascii=False), encoding="utf-8"
-            )
-            cfg.clear()
-            cfg.update(new_cfg)
-            logger.info("[kiraKB] Config migrated to nested sections")
-        except Exception as e:
-            logger.error(f"[kiraKB] Config migration failed: {e}")
+        if "section_basic" not in cfg:
+            flat_keys = [
+                "knowledge_base_dir", "chunk_size", "chunk_overlap",
+                "default_top_k", "enable_hybrid_search", "enable_rerank",
+                "webui_port", "webui_host", "webui_token",
+            ]
+            if not any(k in cfg for k in flat_keys):
+                return  # nothing to migrate
+            logger.info("[kiraKB] Migrating legacy flat config to nested sections")
+            old_overlap = cfg.get("chunk_overlap", 50)
+            new_cfg = {
+                "section_basic": {
+                    "knowledge_base_dir": cfg.get("knowledge_base_dir"),
+                    "chunk_size": cfg.get("chunk_size", 500),
+                    "chunk_overlap": 100 if old_overlap == 50 else old_overlap,
+                    "default_top_k": cfg.get("default_top_k", 5),
+                    "enable_hybrid_search": cfg.get("enable_hybrid_search", True),
+                    "enable_rerank": cfg.get("enable_rerank", False),
+                },
+                "section_webui": {
+                    "enable_webui": False,
+                    "webui_port": cfg.get("webui_port", 19122),
+                    "webui_host": cfg.get("webui_host", "127.0.0.1"),
+                    "webui_token": cfg.get("webui_token", ""),
+                },
+                "section_permission": {
+                    "owner_whitelist": [],
+                },
+            }
+            try:
+                self.config_path.parent.mkdir(parents=True, exist_ok=True)
+                self.config_path.write_text(
+                    json.dumps(new_cfg, indent=4, ensure_ascii=False), encoding="utf-8"
+                )
+                cfg.clear()
+                cfg.update(new_cfg)
+                logger.info("[kiraKB] Config migrated to nested sections")
+            except Exception as e:
+                logger.error(f"[kiraKB] Config migration failed: {e}")
+            return
+
+        # Already nested: bump chunk_overlap 50 (old default) -> 100 (new default)
+        sec_basic = cfg.get("section_basic", {})
+        if sec_basic.get("chunk_overlap") == 50:
+            sec_basic["chunk_overlap"] = 100
+            try:
+                self.config_path.parent.mkdir(parents=True, exist_ok=True)
+                self.config_path.write_text(
+                    json.dumps(cfg, indent=4, ensure_ascii=False), encoding="utf-8"
+                )
+                logger.info("[kiraKB] chunk_overlap migrated 50 -> 100 (new default)")
+            except Exception as e:
+                logger.error(f"[kiraKB] chunk_overlap migration failed: {e}")
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -409,7 +424,7 @@ class KiraKBPlugin(BasePlugin):
 
     # ==================== Sidebar WebUI (page + APIs) ====================
 
-    @register.page("/", menu=PageMenu(label={"zh": "知识库", "en": "Knowledge Base"}, icon="Collection", order=100))
+    @register.page("/index", menu=PageMenu(label={"zh": "知识库", "en": "Knowledge Base"}, icon="Collection", order=100))
     def kb_page(self):
         return PluginPage.from_folder("./web")
 
