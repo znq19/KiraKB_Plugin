@@ -42,7 +42,7 @@ class KiraKBPlugin(BasePlugin):
         if self.chunk_overlap >= self.chunk_size:
             self.chunk_overlap = max(0, self.chunk_size // 5)
         self.default_top_k = int(sec_basic.get("default_top_k", 5))
-        self.enable_hybrid = bool(sec_basic.get("enable_hybrid_search", True))
+        self.enable_hybrid = bool(sec_basic.get("enable_hybrid_search", False))
         self.enable_stopwords = bool(sec_basic.get("enable_stopwords", False))
         self.enable_rerank = bool(sec_basic.get("enable_rerank", False))
 
@@ -80,7 +80,7 @@ class KiraKBPlugin(BasePlugin):
                     "chunk_size": cfg.get("chunk_size", 500),
                     "chunk_overlap": 100 if old_overlap == 50 else old_overlap,
                     "default_top_k": cfg.get("default_top_k", 5),
-                    "enable_hybrid_search": cfg.get("enable_hybrid_search", True),
+                    "enable_hybrid_search": cfg.get("enable_hybrid_search", False),
                     "enable_stopwords": cfg.get("enable_stopwords", False),
                     "enable_rerank": cfg.get("enable_rerank", False),
                 },
@@ -106,18 +106,26 @@ class KiraKBPlugin(BasePlugin):
                 logger.error(f"[kiraKB] Config migration failed: {e}")
             return
 
-        # Already nested: bump chunk_overlap 50 (old default) -> 100 (new default)
+        # Already nested: bump old defaults to new ones
+        #   chunk_overlap 50 (old default) -> 100 (new default)
+        #   enable_hybrid_search true (old default) -> false (new default)
         sec_basic = cfg.get("section_basic", {})
+        changed = False
         if sec_basic.get("chunk_overlap") == 50:
             sec_basic["chunk_overlap"] = 100
+            changed = True
+        if sec_basic.get("enable_hybrid_search") is True:
+            sec_basic["enable_hybrid_search"] = False
+            changed = True
+        if changed:
             try:
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
                 self.config_path.write_text(
                     json.dumps(cfg, indent=4, ensure_ascii=False), encoding="utf-8"
                 )
-                logger.info("[kiraKB] chunk_overlap migrated 50 -> 100 (new default)")
+                logger.info("[kiraKB] Migrated old defaults: chunk_overlap 50->100, enable_hybrid_search true->false")
             except Exception as e:
-                logger.error(f"[kiraKB] chunk_overlap migration failed: {e}")
+                logger.error(f"[kiraKB] Config migration failed: {e}")
 
     # ------------------------------------------------------------------
     # Lifecycle

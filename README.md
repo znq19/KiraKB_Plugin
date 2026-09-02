@@ -275,6 +275,39 @@ but
 
 ---
 
+## 📝 更新日志
+
+<details>
+<summary>v1.1.2（点击展开）</summary>
+
+- **混合检索默认关闭**：`enable_hybrid_search` 默认改为 `false`，回到纯向量检索（更准）。旧默认 `true` 会在首次更新后自动迁移为 `false`（用户自定义值不动）。
+- **侧边栏 WebUI 修复**：所有 bridge API 调用先 `await PluginPageContext.ready()`，修复知识库下拉为空、列表一直"加载中"的问题。
+
+</details>
+
+<details>
+<summary>v1.1.1（点击展开）</summary>
+
+- **停用词文件化**：内置停用词从代码移到 `stopwords_default.txt`（插件目录，可直接编辑），用户 `data/stopwords.txt` 仍合并。
+- **停用词开关**：新增 `enable_stopwords` 配置（默认 `false`），关闭时 BM25 使用原始分词。
+
+</details>
+
+<details>
+<summary>v1.1.0（点击展开）</summary>
+
+- **侧边栏 WebUI**：管理界面嵌入 KiraAI 主 WebUI 侧边栏，自动继承登录认证；右上角"新标签页打开"按钮；独立 WebUI 默认关闭。
+- **工具说明优化**：4 个工具 description 加入参数用法示例，教 LLM 传参。
+- **白名单权限**：新增 `owner_whitelist` 配置，留空交给 LLM 人设判断，非空仅白名单用户可删改。
+- **配置迁移**：schema 改为 section 嵌套，首次加载自动迁移旧平铺配置。
+- **真 rerank**：`RerankModelClient` 重排候选结果，未配置自动降级；混合检索真正接入。
+- **Bug 修复**：FAISS 删除失效、上传走 DocumentParser（PDF/Office/OCR）、chunk 配置生效、死循环防护、后台任务引用、阻塞调用改 `to_thread` 等。
+- **图标**：Agnes 生成 KB 图标（K+B 字母，书本 + 数据库元素）。
+
+</details>
+
+---
+
 ## 🙏 版权与致谢
 
 本插件基于 **[AstrBot](https://zread.ai/AstrBotDevs/AstrBot/22-knowledge-base-manager-document-ingestion-chunking-and-embedding)** 知识库思路进行移植和改造，感谢原作者们的贡献。  
