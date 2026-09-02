@@ -320,7 +320,9 @@ const isSidebarMode = typeof window.PluginPageContext !== 'undefined' && window.
 async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
   if (isSidebarMode) {
-    // Sidebar mode: use the plugin bridge (same-origin, cookie auth)
+    // Sidebar mode: use the plugin bridge (same-origin, cookie auth).
+    // MUST await ready() first — bridge URLs need context.pluginId.
+    const ctx = await window.PluginPageContext.ready();
     const bridge = window.PluginPageContext.api;
     if (method === 'GET') {
       return bridge.get(path);
@@ -330,7 +332,6 @@ async function api(path, opts = {}) {
       return bridge.delete(path);
     }
     // PUT: bridge has no PUT helper — fall back to same-origin fetch
-    const ctx = await window.PluginPageContext.ready();
     const res = await fetch('/api/plugin/' + encodeURIComponent(ctx.pluginId) + path, {
       method: 'PUT',
       credentials: 'same-origin',
@@ -352,6 +353,7 @@ async function api(path, opts = {}) {
 // Upload helper (works in both modes)
 async function apiUpload(path, formData) {
   if (isSidebarMode) {
+    await window.PluginPageContext.ready();
     const file = formData.get('file');
     return window.PluginPageContext.api.upload(path, file, 'file');
   }
@@ -727,4 +729,4 @@ loadKBs();
 startTaskPolling();
 </script>
 </body>
-</html>
+</html>
