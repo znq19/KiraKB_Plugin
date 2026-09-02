@@ -198,7 +198,11 @@ button.small {
 </head>
 <body>
 <div class="container">
-  <h1>KiraKB 知识库管理</h1>
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+    <h1 style="margin-bottom: 0;">KiraKB 知识库管理</h1>
+    <button id="openNewTabBtn" class="secondary" title="在新标签页中打开">↗ 新标签页打开</button>
+  </div>
+  <div style="height: 24px;"></div>
 
   <div class="kb-header">
     <div class="kb-selector">
@@ -310,13 +314,66 @@ const headers = { 'Content-Type': 'application/json' };
 if (token) headers['Authorization'] = `Bearer ${token}`;
 let taskPollInterval = null;
 
+// Detect mode: sidebar iframe (plugin-bridge injected) vs standalone
+const isSidebarMode = typeof window.PluginPageContext !== 'undefined' && window.PluginPageContext.ready;
+
 async function api(path, opts = {}) {
+  const method = (opts.method || 'GET').toUpperCase();
+  if (isSidebarMode) {
+    // Sidebar mode: use the plugin bridge (same-origin, cookie auth)
+    const bridge = window.PluginPageContext.api;
+    if (method === 'GET') {
+      return bridge.get(path);
+    } else if (method === 'POST') {
+      return bridge.post(path, opts.body ? JSON.parse(opts.body) : {});
+    } else if (method === 'DELETE') {
+      return bridge.delete(path);
+    }
+    // PUT: bridge has no PUT helper — fall back to same-origin fetch
+    const ctx = await window.PluginPageContext.ready();
+    const res = await fetch('/api/plugin/' + encodeURIComponent(ctx.pluginId) + path, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: opts.body || '{}'
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+  // Standalone mode: direct fetch with optional token
   const res = await fetch('/api' + path, { ...opts, headers });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(err);
   }
   return res.json();
+}
+
+// Upload helper (works in both modes)
+async function apiUpload(path, formData) {
+  if (isSidebarMode) {
+    const file = formData.get('file');
+    return window.PluginPageContext.api.upload(path, file, 'file');
+  }
+  const res = await fetch('/api' + path, {
+    method: 'POST',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    body: formData
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Open in a new tab
+document.getElementById('openNewTabBtn').onclick = () => {
+  window.open(location.href, '_blank');
+};
+
+// Dark theme support via plugin bridge
+if (isSidebarMode) {
+  window.PluginPageContext.onThemeChange((isDark) => {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  });
 }
 
 function escapeHtml(s) {
@@ -488,13 +545,13 @@ document.getElementById('uploadBtn').onclick = async () => {
   for (const file of files) {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`/api/kbs/${encodeURIComponent(currentKbId)}/documents`, {
-      method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      body: formData
-    });
-    if (!res.ok) alert(`上传 ${file.name} 失败: ${await res.text()}`);
-    else alert(`上传 ${file.name} 成功`);
+    try {
+      const res = await apiUpload(`/kbs/${encodeURIComponent(currentKbId)}/documents`, formData);
+      if (res.error) alert(`上传 ${file.name} 失败: ${res.error}`);
+      else alert(`上传 ${file.name} 成功`);
+    } catch (e) {
+      alert(`上传 ${file.name} 失败: ${e.message}`);
+    }
   }
   await loadDocuments();
 };
@@ -670,4 +727,4 @@ loadKBs();
 startTaskPolling();
 </script>
 </body>
-</html>
+</html>

@@ -39,6 +39,8 @@ class RecursiveCharacterChunker:
         chunks = []
         start = 0
         step = self.chunk_size - self.chunk_overlap
+        if step <= 0:
+            step = max(1, self.chunk_size // 2)
         while start < len(text):
             end = start + self.chunk_size
             chunks.append(text[start:end])
@@ -69,4 +71,4 @@ class RecursiveCharacterChunker:
                 current_len += split_len
         if current_chunk:
             chunks.append("".join(current_chunk))
-        return chunks
+        return chunks

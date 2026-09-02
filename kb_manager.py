@@ -1,3 +1,4 @@
+
 import asyncio
 import json
 import re
@@ -18,7 +19,9 @@ logger = get_logger("kb_manager", "cyan")
 
 class KnowledgeBaseVersion:
     def __init__(self, kb_id: str, version_id: str, version_path: Path,
-                 model_name: str, dimension: int, created_at: float):
+                 model_name: str, dimension: int, created_at: float,
+                 stopwords_path: str = None, rerank_client=None,
+                 enable_rerank: bool = False):
         self.kb_id = kb_id
         self.version_id = version_id
         self.path = version_path
@@ -27,18 +30,39 @@ class KnowledgeBaseVersion:
         self.created_at = created_at
         self.vector_store = VectorStore(str(self.path / "vectors"))
         self.retriever = None
+        self.stopwords_path = stopwords_path
+        self.rerank_client = rerank_client
+        self.enable_rerank = enable_rerank
         self._initialized = False
 
     async def initialize(self):
         if not self._initialized:
             await self.vector_store.initialize(self.dimension)
-            self.retriever = HybridRetriever(self.vector_store, None)
+            self.retriever = HybridRetriever(self.vector_store, self.stopwords_path)
             self._initialized = True
 
-    async def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict]:
+    async def search(self, query: str, query_embedding: List[float],
+                     top_k: int = 5, enable_hybrid: bool = True) -> List[Dict]:
         if not self._initialized:
             await self.initialize()
-        return await self.vector_store.search(query_embedding, k=top_k)
+        results = await self.retriever.search(
+            query, query_embedding, top_k=top_k, enable_hybrid=enable_hybrid
+        )
+        # Optional rerank pass
+        if self.enable_rerank and self.rerank_client and results:
+            try:
+                docs = [r["content"] for r in results]
+                reranked = await self.rerank_client.rerank(query, docs, top_n=top_k)
+                ordered = []
+                for rr in reranked:
+                    if 0 <= rr.index < len(results):
+                        results[rr.index]["score"] = float(rr.score)
+                        ordered.append(results[rr.index])
+                if ordered:
+                    return ordered
+            except Exception as e:
+                logger.warning(f"Rerank failed, falling back to raw results: {e}")
+        return results
 
     async def add_chunks_for_document(self, doc_id: str, chunks: List[Dict], embeddings: List[List[float]]) -> List[str]:
         if not self._initialized:
@@ -84,7 +108,9 @@ class KnowledgeBaseVersion:
 
 class KnowledgeBase:
     def __init__(self, kb_id: str, kb_dir: Path, embedding_client_getter: Callable,
-                 stopwords_path: str = None, vlm_client=None, rerank_client=None, enable_rerank: bool = False):
+                 stopwords_path: str = None, vlm_client=None, rerank_client=None,
+                 enable_rerank: bool = False, chunk_size: int = 500,
+                 chunk_overlap: int = 50):
         self.kb_id = kb_id
         self.kb_dir = kb_dir
         self.raw_docs_dir = kb_dir / "raw_docs"
@@ -97,6 +123,8 @@ class KnowledgeBase:
         self.vlm_client = vlm_client
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
 
         self.info = self._load_info()
         self._current_version_id = self._load_current_version()
@@ -109,7 +137,7 @@ class KnowledgeBase:
             try:
                 with open(info_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
         return {"display_name": self.kb_id, "description": ""}
 
@@ -155,7 +183,10 @@ class KnowledgeBase:
                     version_path=ver_dir,
                     model_name=model_info.get("model_name", "unknown"),
                     dimension=model_info.get("dimension", 0),
-                    created_at=model_info.get("created_at", 0)
+                    created_at=model_info.get("created_at", 0),
+                    stopwords_path=self.stopwords_path,
+                    rerank_client=self.rerank_client,
+                    enable_rerank=self.enable_rerank,
                 )
                 await version.initialize()
                 self._versions[version_id] = version
@@ -202,7 +233,10 @@ class KnowledgeBase:
             version_path=version_path,
             model_name=model_name,
             dimension=dimension,
-            created_at=time.time()
+            created_at=time.time(),
+            stopwords_path=self.stopwords_path,
+            rerank_client=self.rerank_client,
+            enable_rerank=self.enable_rerank,
         )
         await version.initialize()
 
@@ -218,7 +252,9 @@ class KnowledgeBase:
             if not doc_path.exists():
                 continue
             content = doc_path.read_text(encoding="utf-8")
-            chunker = RecursiveCharacterChunker()
+            chunker = RecursiveCharacterChunker(
+                chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
+            )
             chunks = chunker.split_text(content)
             if not chunks:
                 continue
@@ -244,7 +280,7 @@ class KnowledgeBase:
         if self._current_version_id == version_id:
             return False
         await self._versions[version_id].close()
-        shutil.rmtree(self.versions_dir / version_id)
+        await asyncio.to_thread(shutil.rmtree, self.versions_dir / version_id)
         del self._versions[version_id]
         return True
 
@@ -260,7 +296,7 @@ class KnowledgeBase:
                     meta = json.loads(meta_path.read_text())
                     name = meta.get("original_name", doc_id)
                     deleted = meta.get("deleted", False)
-                except:
+                except Exception:
                     pass
             if not include_deleted and deleted:
                 continue
@@ -279,7 +315,7 @@ class KnowledgeBase:
                 if meta.get("deleted", False):
                     name = meta.get("original_name", doc_id)
                     docs.append({"doc_id": doc_id, "name": name})
-            except:
+            except Exception:
                 pass
         return docs
 
@@ -297,7 +333,9 @@ class KnowledgeBase:
             if active_ver:
                 content = await self.get_raw_document(doc_id)
                 if content:
-                    chunker = RecursiveCharacterChunker()
+                    chunker = RecursiveCharacterChunker(
+                        chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
+                    )
                     chunks = chunker.split_text(content)
                     if chunks:
                         client = await self.embedding_client_getter()
@@ -375,7 +413,8 @@ class KnowledgeBase:
 class KnowledgeBaseManager:
     def __init__(self, base_dir: str, embedding_client_getter: Callable[[], Awaitable],
                  stopwords_path: str = None, vlm_client=None,
-                 rerank_client=None, enable_rerank: bool = False):
+                 rerank_client=None, enable_rerank: bool = False,
+                 chunk_size: int = 500, chunk_overlap: int = 50):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.embedding_client_getter = embedding_client_getter
@@ -383,6 +422,8 @@ class KnowledgeBaseManager:
         self.vlm_client = vlm_client
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
         self.kbs: Dict[str, KnowledgeBase] = {}
 
     async def load_existing_kbs(self):
@@ -397,7 +438,8 @@ class KnowledgeBaseManager:
             kb = KnowledgeBase(
                 kb_id, subdir, self.embedding_client_getter,
                 self.stopwords_path, self.vlm_client,
-                self.rerank_client, self.enable_rerank
+                self.rerank_client, self.enable_rerank,
+                self.chunk_size, self.chunk_overlap,
             )
             await kb.load_versions()
             self.kbs[kb_id] = kb
@@ -413,7 +455,8 @@ class KnowledgeBaseManager:
         kb = KnowledgeBase(
             kb_id, kb_dir, self.embedding_client_getter,
             self.stopwords_path, self.vlm_client,
-            self.rerank_client, self.enable_rerank
+            self.rerank_client, self.enable_rerank,
+            self.chunk_size, self.chunk_overlap,
         )
         kb.info = {"display_name": kb_id, "description": ""}
         kb._save_info()
@@ -427,9 +470,9 @@ class KnowledgeBaseManager:
     async def delete_kb(self, kb_id: str):
         if kb_id in self.kbs:
             await self.kbs[kb_id].close()
-            shutil.rmtree(self.base_dir / kb_id)
+            await asyncio.to_thread(shutil.rmtree, self.base_dir / kb_id)
             del self.kbs[kb_id]
 
     async def close_all(self):
         for kb in self.kbs.values():
-            await kb.close()
+            await kb.close()

@@ -1,3 +1,4 @@
+import asyncio
 import numpy as np
 from rank_bm25 import BM25Okapi
 import jieba
@@ -13,7 +14,7 @@ class HybridRetriever:
             try:
                 with open(stopwords_path, "r", encoding="utf-8") as f:
                     self.stopwords = set(line.strip() for line in f)
-            except:
+            except Exception:
                 pass
 
     async def search(
@@ -22,7 +23,6 @@ class HybridRetriever:
         query_embedding: List[float],
         top_k: int = 5,
         enable_hybrid: bool = True,
-        alpha: float = 0.5,
     ) -> List[Dict[str, Any]]:
         # Vector search (get more candidates)
         vector_results = await self.vector_store.search(query_embedding, k=top_k * 2)
@@ -32,25 +32,33 @@ class HybridRetriever:
         if not enable_hybrid:
             return vector_results[:top_k]
 
-        # BM25 on candidate texts
+        # BM25 on candidate texts (jieba is CPU-bound, run in a thread)
         candidate_texts = [r["content"] for r in vector_results]
-        tokenized_corpus = [list(jieba.cut(text)) for text in candidate_texts]
-        if self.stopwords:
-            tokenized_corpus = [[w for w in doc if w not in self.stopwords] for doc in tokenized_corpus]
-        bm25 = BM25Okapi(tokenized_corpus)
-        tokenized_query = list(jieba.cut(query))
-        if self.stopwords:
-            tokenized_query = [w for w in tokenized_query if w not in self.stopwords]
-        bm25_scores = bm25.get_scores(tokenized_query)
+
+        def _bm25_scores():
+            tokenized_corpus = [list(jieba.cut(text)) for text in candidate_texts]
+            if self.stopwords:
+                tokenized_corpus = [
+                    [w for w in doc if w not in self.stopwords] for doc in tokenized_corpus
+                ]
+            bm25 = BM25Okapi(tokenized_corpus)
+            tokenized_query = list(jieba.cut(query))
+            if self.stopwords:
+                tokenized_query = [w for w in tokenized_query if w not in self.stopwords]
+            return bm25.get_scores(tokenized_query)
+
+        bm25_scores = await asyncio.to_thread(_bm25_scores)
 
         # RRF fusion
         rrf_k = 60
-        vector_ranks = {i: idx for idx, i in enumerate(range(len(vector_results)))}
-        bm25_ranks = {i: idx for idx, i in enumerate(sorted(range(len(bm25_scores)), key=lambda x: bm25_scores[x], reverse=True))}
+        n = len(vector_results)
+        vector_ranks = list(range(n))
+        bm25_ranks = sorted(range(n), key=lambda x: bm25_scores[x], reverse=True)
+        bm25_rank_pos = {doc_idx: pos for pos, doc_idx in enumerate(bm25_ranks)}
 
         combined_scores = {}
-        for i in range(len(vector_results)):
-            score = 1 / (rrf_k + vector_ranks[i] + 1) + 1 / (rrf_k + bm25_ranks.get(i, rrf_k) + 1)
+        for i in range(n):
+            score = 1 / (rrf_k + vector_ranks[i] + 1) + 1 / (rrf_k + bm25_rank_pos.get(i, rrf_k) + 1)
             combined_scores[i] = score
 
         sorted_indices = sorted(combined_scores.keys(), key=lambda x: combined_scores[x], reverse=True)
