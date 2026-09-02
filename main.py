@@ -409,7 +409,7 @@ class KiraKBPlugin(BasePlugin):
 
     # ==================== Sidebar WebUI (page + APIs) ====================
 
-    @register.page("/", menu=PageMenu(label={"zh": "知识库", "en": "Knowledge Base"}, icon="Collection", order=100))
+    @register.page("/index", menu=PageMenu(label={"zh": "知识库", "en": "Knowledge Base"}, icon="Collection", order=100))
     def kb_page(self):
         return PluginPage.from_folder("./web")
 
