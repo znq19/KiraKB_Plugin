@@ -278,6 +278,15 @@ but
 ## 📝 更新日志
 
 <details>
+<summary>v1.1.3（点击展开）</summary>
+
+- **修复侧边栏 WebUI 按钮无反应**：KiraAI 以沙箱 iframe 加载插件页面（`sandbox` 未含 `allow-modals`），原生 `prompt()` / `confirm()` / `alert()` 会被浏览器静默忽略，导致「新建知识库」「删除知识库/文档/版本」点击无反应、成功/失败提示不显示。现已全部替换为页面内自绘弹窗（`KB.prompt` / `KB.confirm` / `KB.alert`），并补充了知识库 ID 合法性校验与无知识库时的操作提示。
+- **修复「新标签页打开」卡死**：新标签页顶层窗口没有父页面提供 bridge 上下文，`PluginPageContext.ready()` 会永久挂起。现自动识别顶层窗口并改用 `/api/plugin/<插件ID>` 直连；新标签页链接改为携带 token 的绝对地址。
+- **Bridge 初始化超时保护**：侧边栏模式 `ready()` 增加 8 秒超时，超时给出明确提示，不再无限等待。
+
+</details>
+
+<details>
 <summary>v1.1.2（点击展开）</summary>
 
 - **混合检索默认关闭**：`enable_hybrid_search` 默认改为 `false`，回到纯向量检索（更准）。旧默认 `true` 会在首次更新后自动迁移为 `false`（用户自定义值不动）。
