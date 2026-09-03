@@ -179,6 +179,14 @@ button.small {
   min-height: 200px;
   font-family: monospace;
 }
+#kbModal .modal-content { width: 480px; max-width: 92%; }
+#kbModal input[type="text"] {
+  width: 100%; box-sizing: border-box; padding: 10px 12px;
+  border: 1px solid #cbd5e1; border-radius: 10px; font-size: .95rem;
+  background: transparent; color: inherit; margin-bottom: 16px;
+}
+[data-theme="dark"] #kbModal .modal-content { background: #1e293b; color: #e2e8f0; }
+[data-theme="dark"] #kbModal input[type="text"] { border-color: #475569; }
 .task-item {
   background: #f8fafc;
   border-radius: 12px;
@@ -305,7 +313,77 @@ button.small {
   </div>
 </div>
 
+<!-- Modal: sandbox-safe prompt/confirm/alert (KiraAI iframe blocks native ones) -->
+<div id="kbModal" class="modal">
+  <div class="modal-content">
+    <h3 id="kbModalTitle">提示</h3>
+    <div id="kbModalBody" style="margin-bottom:16px; word-break:break-all;"></div>
+    <input type="text" id="kbModalInput" style="display:none;">
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button id="kbModalCancel" class="secondary" style="display:none;">取消</button>
+      <button id="kbModalOk" style="background:#4f46e5;">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ── KB modal helper: KiraAI renders plugin pages in a sandboxed <iframe>
+// without the allow-modals flag, so native prompt()/confirm()/alert() are
+// silently ignored (e.g. createKB's prompt() returned null → "nothing
+// happens"). Replace them with an in-page modal.
+const KB = (() => {
+  let modal, titleEl, bodyEl, inputEl, okBtn, cancelBtn, resolveFn;
+  function init() {
+    if (modal) return;
+    modal = document.getElementById('kbModal');
+    if (!modal) return;
+    titleEl = document.getElementById('kbModalTitle');
+    bodyEl = document.getElementById('kbModalBody');
+    inputEl = document.getElementById('kbModalInput');
+    okBtn = document.getElementById('kbModalOk');
+    cancelBtn = document.getElementById('kbModalCancel');
+    const close = (val) => {
+      modal.style.display = 'none';
+      if (resolveFn) { const r = resolveFn; resolveFn = null; r(val); }
+    };
+    okBtn.onclick = () => {
+      if (inputEl.style.display !== 'none') close(inputEl.value);
+      else close(true);
+    };
+    cancelBtn.onclick = () => close(false);
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+      else if (e.key === 'Escape') cancelBtn.click();
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close(false);
+    });
+  }
+  function open(opts) {
+    init();
+    if (!modal) { // last-resort fallback (should not happen)
+      if (opts.type === 'confirm') return Promise.resolve(window.confirm(opts.message) !== false);
+      if (opts.type === 'alert') { window.alert(opts.message); return Promise.resolve(true); }
+      return Promise.resolve(window.prompt(opts.message, opts.inputValue));
+    }
+    titleEl.textContent = opts.title || '提示';
+    bodyEl.textContent = opts.message || '';
+    const isPrompt = opts.type === 'prompt';
+    inputEl.style.display = isPrompt ? '' : 'none';
+    inputEl.value = opts.inputValue || '';
+    okBtn.textContent = opts.okText || '确定';
+    cancelBtn.style.display = opts.type === 'alert' ? 'none' : '';
+    if (isPrompt) setTimeout(() => { inputEl.focus(); inputEl.select(); }, 60);
+    modal.style.display = 'flex';
+    return new Promise((res) => { resolveFn = res; });
+  }
+  return {
+    alert:   (msg)   => open({ type: 'alert', message: msg }),
+    confirm: (msg)   => open({ type: 'confirm', message: msg, okText: '确定' }),
+    prompt:  (msg, v) => open({ type: 'prompt', message: msg, inputValue: v || '' }),
+  };
+})();
+
 let currentKbId = null;
 let token = new URLSearchParams(location.search).get('token') || '';
 if (token) sessionStorage.setItem('kirakb_token', token);
@@ -314,15 +392,27 @@ const headers = { 'Content-Type': 'application/json' };
 if (token) headers['Authorization'] = `Bearer ${token}`;
 let taskPollInterval = null;
 
-// Detect mode: sidebar iframe (plugin-bridge injected) vs standalone
-const isSidebarMode = typeof window.PluginPageContext !== 'undefined' && window.PluginPageContext.ready;
+// Detect mode: sidebar iframe (plugin-bridge injected) vs standalone.
+// NOTE: a top-level tab opened via the "open in new tab" button has no
+// parent to answer the bridge's ready(), so always treat top-level
+// windows (window.parent === window) as standalone.
+const isSidebarMode = typeof window.PluginPageContext !== 'undefined'
+  && window.PluginPageContext.ready
+  && window.parent !== window;
+function pluginIdFromPath() {
+  const m = location.pathname.match(/^\/page\/plugin\/([^\/]+)\//);
+  return m ? decodeURIComponent(m[1]) : null;
+}
 
 async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
   if (isSidebarMode) {
     // Sidebar mode: use the plugin bridge (same-origin, cookie auth).
     // MUST await ready() first — bridge URLs need context.pluginId.
-    const ctx = await window.PluginPageContext.ready();
+    const ctx = await Promise.race([
+      window.PluginPageContext.ready(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('bridge 初始化超时，请刷新重试')), 8000))
+    ]);
     const bridge = window.PluginPageContext.api;
     if (method === 'GET') {
       return bridge.get(path);
@@ -341,8 +431,12 @@ async function api(path, opts = {}) {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   }
-  // Standalone mode: direct fetch with optional token
-  const res = await fetch('/api' + path, { ...opts, headers });
+  // Standalone mode: direct fetch with optional token.
+  // When served by KiraAI itself (/page/plugin/<id>/...), the API root is
+  // /api/plugin/<id>; the standalone web_server exposes /api instead.
+  const pid = pluginIdFromPath();
+  const base = pid ? '/api/plugin/' + pid : '/api';
+  const res = await fetch(base + path, { ...opts, headers });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(err);
@@ -357,7 +451,9 @@ async function apiUpload(path, formData) {
     const file = formData.get('file');
     return window.PluginPageContext.api.upload(path, file, 'file');
   }
-  const res = await fetch('/api' + path, {
+  const pid = pluginIdFromPath();
+  const base = pid ? '/api/plugin/' + pid : '/api';
+  const res = await fetch(base + path, {
     method: 'POST',
     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     body: formData
@@ -366,9 +462,15 @@ async function apiUpload(path, formData) {
   return res.json();
 }
 
-// Open in a new tab
+// Open in a new tab — absolute URL so the plugin id is present, plus the
+// token query param so the standalone (non-iframe) fetch can authenticate.
 document.getElementById('openNewTabBtn').onclick = () => {
-  window.open(location.href, '_blank');
+  const pid = pluginIdFromPath();
+  if (!pid) { window.open(location.href, '_blank'); return; }
+  const q = new URLSearchParams(location.search);
+  q.set('token', token);
+  const url = '/page/plugin/' + encodeURIComponent(pid) + '/index' + (q.toString() ? '?' + q.toString() : '');
+  window.open(url, '_blank');
 };
 
 // Dark theme support via plugin bridge
@@ -414,6 +516,8 @@ async function loadKBs() {
     await loadVersions();
   } catch (e) {
     console.error(e);
+    document.getElementById('docList').innerHTML = `<p style="color:#dc2626;">加载失败: ${e.message}</p>`;
+    document.getElementById('versionList').innerHTML = '';
   }
 }
 
@@ -475,17 +579,17 @@ async function editDocument(docId) {
     modal.style.display = 'flex';
     window._currentEditDocId = docId;
   } catch (e) {
-    alert('获取文档内容失败: ' + e.message);
+    await KB.alert('获取文档内容失败: ' + e.message);
   }
 }
 
 async function deleteDocument(docId) {
-  if (!confirm('确定删除此文档？可后续恢复。')) return;
+  if (!(await KB.confirm('确定删除此文档？可后续恢复。'))) return;
   try {
     await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}`, { method: 'DELETE' });
     await loadDocuments();
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    await KB.alert('删除失败: ' + e.message);
   }
 }
 
@@ -493,23 +597,24 @@ async function activateVersion(versionId) {
   try {
     await api(`/kbs/${encodeURIComponent(currentKbId)}/versions/${versionId}/activate`, { method: 'POST' });
     await loadVersions();
-    alert('版本已激活，后续检索将使用此版本');
+    await KB.alert('版本已激活，后续检索将使用此版本');
   } catch (e) {
-    alert('激活失败: ' + e.message);
+    await KB.alert('激活失败: ' + e.message);
   }
 }
 
 async function deleteVersion(versionId) {
-  if (!confirm('确定删除此版本？不可恢复。')) return;
+  if (!(await KB.confirm('确定删除此版本？不可恢复。'))) return;
   try {
     await api(`/kbs/${encodeURIComponent(currentKbId)}/versions/${versionId}`, { method: 'DELETE' });
     await loadVersions();
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    await KB.alert('删除失败: ' + e.message);
   }
 }
 
 document.getElementById('createVersionBtn').onclick = async () => {
+  if (!currentKbId) { await KB.alert('请先创建或选择一个知识库'); return; }
   const docs = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents`);
   const select = document.getElementById('versionDocSelect');
   select.innerHTML = docs.map(d => `<option value="${d.doc_id}">${escapeHtml(d.name)}</option>`).join('');
@@ -520,7 +625,7 @@ document.getElementById('versionModalCreate').onclick = async () => {
   const modelName = document.getElementById('versionModelName').value.trim();
   const dimension = parseInt(document.getElementById('versionDimension').value);
   if (!modelName || isNaN(dimension)) {
-    alert('请填写模型名称和维度');
+    await KB.alert('请填写模型名称和维度');
     return;
   }
   const select = document.getElementById('versionDocSelect');
@@ -533,15 +638,16 @@ document.getElementById('versionModalCreate').onclick = async () => {
       method: 'POST',
       body: JSON.stringify(payload)
     });
-    alert(`任务已创建，ID: ${res.task_id}，请稍后在任务列表中查看进度`);
+    await KB.alert(`任务已创建，ID: ${res.task_id}，请稍后在任务列表中查看进度`);
     document.getElementById('versionModal').style.display = 'none';
     startTaskPolling();
   } catch (e) {
-    alert('创建失败: ' + e.message);
+    await KB.alert('创建失败: ' + e.message);
   }
 };
 
 document.getElementById('uploadBtn').onclick = async () => {
+  if (!currentKbId) { await KB.alert('请先创建或选择一个知识库'); return; }
   const files = document.getElementById('fileInput').files;
   if (!files.length) return;
   for (const file of files) {
@@ -549,16 +655,17 @@ document.getElementById('uploadBtn').onclick = async () => {
     formData.append('file', file);
     try {
       const res = await apiUpload(`/kbs/${encodeURIComponent(currentKbId)}/documents`, formData);
-      if (res.error) alert(`上传 ${file.name} 失败: ${res.error}`);
-      else alert(`上传 ${file.name} 成功`);
+      if (res.error) await KB.alert(`上传 ${file.name} 失败: ${res.error}`);
+      else await KB.alert(`上传 ${file.name} 成功`);
     } catch (e) {
-      alert(`上传 ${file.name} 失败: ${e.message}`);
+      await KB.alert(`上传 ${file.name} 失败: ${e.message}`);
     }
   }
   await loadDocuments();
 };
 
 document.getElementById('searchBtn').onclick = async () => {
+  if (!currentKbId) { await KB.alert('请先创建或选择一个知识库'); return; }
   const query = document.getElementById('searchQuery').value;
   if (!query) return;
   try {
@@ -583,7 +690,7 @@ document.getElementById('searchBtn').onclick = async () => {
 };
 
 document.getElementById('editKbInfoBtn').onclick = async () => {
-  if (!currentKbId) return;
+  if (!currentKbId) { await KB.alert('请先创建或选择一个知识库'); return; }
   const info = await api(`/kbs/${encodeURIComponent(currentKbId)}/info`);
   document.getElementById('modalDisplayName').value = info.display_name || '';
   document.getElementById('modalDescription').value = info.description || '';
@@ -602,25 +709,29 @@ document.getElementById('modalSaveBtn').onclick = async () => {
 };
 
 document.getElementById('createKbBtn').onclick = async () => {
-  const name = prompt('输入知识库 ID (英文，数字，下划线，连字符)');
-  if (!name) return;
+  const name = await KB.prompt('输入知识库 ID (英文，数字，下划线，连字符)');
+  if (!name || !name.trim()) return;
+  if (!/^[a-zA-Z0-9_-]+$/.test(name.trim())) {
+    await KB.alert('知识库 ID 只能包含字母、数字、下划线、连字符');
+    return;
+  }
   try {
-    await api('/kbs', { method: 'POST', body: JSON.stringify({ kb_id: name }) });
+    await api('/kbs', { method: 'POST', body: JSON.stringify({ kb_id: name.trim() }) });
     await loadKBs();
   } catch (e) {
-    alert('创建失败: ' + e.message);
+    await KB.alert('创建失败: ' + e.message);
   }
 };
 
 document.getElementById('deleteKbBtn').onclick = async () => {
   if (!currentKbId) return;
-  if (!confirm(`删除知识库 ${currentKbId} 将删除所有文档和版本，不可恢复！`)) return;
+  if (!(await KB.confirm(`删除知识库 ${currentKbId} 将删除所有文档和版本，不可恢复！`))) return;
   try {
     await api(`/kbs/${encodeURIComponent(currentKbId)}`, { method: 'DELETE' });
     currentKbId = null;
     await loadKBs();
   } catch (e) {
-    alert('删除失败: ' + e.message);
+    await KB.alert('删除失败: ' + e.message);
   }
 };
 
@@ -652,11 +763,11 @@ document.getElementById('docEditSave').onclick = async () => {
       method: 'PUT',
       body: JSON.stringify({ content: newContent })
     });
-    alert('文档已更新并重新向量化');
+    await KB.alert('文档已更新并重新向量化');
     closeModals();
     await loadDocuments();
   } catch (e) {
-    alert('保存失败: ' + e.message);
+    await KB.alert('保存失败: ' + e.message);
   }
 };
 
@@ -683,12 +794,12 @@ async function loadDeletedDocuments() {
 async function restoreDocument(docId) {
   try {
     await api(`/kbs/${encodeURIComponent(currentKbId)}/documents/${docId}/restore`, { method: 'POST' });
-    alert('恢复成功，文档将重新向量化。');
+    await KB.alert('恢复成功，文档将重新向量化。');
     loadDeletedDocuments();
     loadDocuments();
     loadVersions();
   } catch (e) {
-    alert('恢复失败: ' + e.message);
+    await KB.alert('恢复失败: ' + e.message);
   }
 }
 
