@@ -5,6 +5,7 @@ This module only runs when enable_webui is on and webui_port > 0.
 """
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 import uvicorn
 from starlette.applications import Starlette
@@ -114,6 +115,17 @@ async def api_create_version(request: Request) -> JSONResponse:
     return _json(data, status)
 
 
+async def api_embedding_models(request: Request) -> JSONResponse:
+    mgr = _get_mgr(request)
+    return _json(api.embedding_models(mgr, request.app.state.default_embedding_uuid))
+
+
+async def api_probe_embedding(request: Request) -> JSONResponse:
+    body = await request.json()
+    data = await api.probe_embedding(_get_mgr(request), (body or {}).get("model_uuid"))
+    return _json(data)
+
+
 # ========== Documents ==========
 
 async def api_list_documents(request: Request) -> JSONResponse:
@@ -190,7 +202,7 @@ async def api_list_tasks(request: Request) -> JSONResponse:
 
 # ========== Route creation ==========
 
-def create_app(kb_manager, token: str = "") -> Starlette:
+def create_app(kb_manager, token: str = "", default_embedding_uuid: Optional[str] = None) -> Starlette:
     routes = [
         Route("/", serve_index, methods=["GET"]),
         Route("/favicon.ico", favicon, methods=["GET"]),
@@ -215,6 +227,9 @@ def create_app(kb_manager, token: str = "") -> Starlette:
         Route("/api/kbs/{kb_id}/documents/{doc_id}/restore", api_restore_document, methods=["POST"]),
         # Search
         Route("/api/kbs/{kb_id}/search", api_search, methods=["POST"]),
+        # Embedding models / dimension probing
+        Route("/api/embedding-models", api_embedding_models, methods=["GET"]),
+        Route("/api/embedding-models/probe", api_probe_embedding, methods=["POST"]),
         # Tasks
         Route("/api/tasks", api_list_tasks, methods=["GET"]),
         Route("/api/tasks/{task_id}", api_get_task, methods=["GET"]),
@@ -223,20 +238,26 @@ def create_app(kb_manager, token: str = "") -> Starlette:
     middleware = [Middleware(TokenAuthMiddleware, token=token)] if token else []
     app = Starlette(routes=routes, middleware=middleware)
     app.state.kb_manager = kb_manager
+    app.state.default_embedding_uuid = default_embedding_uuid
     return app
 
 
 class WebUIServer:
-    def __init__(self, kb_manager, host="127.0.0.1", port=19122, token=""):
+    def __init__(self, kb_manager, host="127.0.0.1", port=19122, token="",
+                 default_embedding_uuid: Optional[str] = None):
         self.kb_manager = kb_manager
         self.host = host
         self.port = port
         self.token = token
+        self.default_embedding_uuid = default_embedding_uuid
         self._server = None
         self._task = None
 
     async def start(self):
-        app = create_app(self.kb_manager, self.token)
+        app = create_app(
+            self.kb_manager, self.token,
+            default_embedding_uuid=self.default_embedding_uuid,
+        )
         config = uvicorn.Config(app, host=self.host, port=self.port, log_level="warning", access_log=False)
         self._server = uvicorn.Server(config)
         self._task = asyncio.create_task(self._server.serve())

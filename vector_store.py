@@ -56,6 +56,22 @@ class VectorStore:
             raise ValueError("chunks and embeddings length mismatch")
         if not chunks:
             return []
+        # Guard before touching FAISS. A shape mismatch here previously threw a
+        # bare AssertionError whose str() is empty, so the user saw only
+        # "Task xxx failed: " with no explanation at all.
+        if self.index is None:
+            raise ValueError("Vector store is not initialized; cannot add chunks.")
+        vectors = np.asarray(embeddings, dtype=np.float32)
+        if vectors.ndim != 2:
+            raise ValueError(
+                f"嵌入向量形状异常：期望二维数组 (n, {self.dimension})，"
+                f"实际得到 {vectors.shape}。请检查嵌入模型的返回格式。"
+            )
+        if vectors.shape[1] != self.dimension:
+            raise ValueError(
+                f"向量维度不匹配：索引为 {self.dimension} 维，"
+                f"但本次写入的是 {vectors.shape[1]} 维。请用 {vectors.shape[1]} 维重建版本。"
+            )
 
         async with self.async_session() as session:
             doc_chunks = []
@@ -72,15 +88,20 @@ class VectorStore:
             ids = np.array([dc.id for dc in doc_chunks], dtype=np.int64)
             await session.commit()
 
-        vectors = np.array(embeddings, dtype=np.float32)
         self.index.add_with_ids(vectors, ids)
         faiss.write_index(self.index, str(self.index_path))
         return [dc.chunk_id for dc in doc_chunks]
 
     async def search(self, query_embedding: List[float], k: int = 5) -> List[Dict[str, Any]]:
-        if self.index.ntotal == 0:
+        if self.index is None or self.index.ntotal == 0:
             return []
-        query_vec = np.array([query_embedding], dtype=np.float32)
+        query_vec = np.asarray([query_embedding], dtype=np.float32)
+        if query_vec.ndim != 2 or query_vec.shape[1] != self.dimension:
+            raise ValueError(
+                f"查询向量维度不匹配：索引为 {self.dimension} 维，"
+                f"但本次查询是 {query_vec.shape[1] if query_vec.ndim == 2 else '未知'} 维。"
+                "请检查当前嵌入模型与该版本是否一致。"
+            )
         distances, indices = self.index.search(query_vec, k)
         valid_ids = [int(idx) for idx in indices[0] if idx != -1]
         if not valid_ids:

@@ -10,13 +10,19 @@ from core.plugin import BasePlugin, logger, register, PluginPage, PageMenu
 from core.chat.message_utils import KiraMessageBatchEvent
 from core.utils.path_utils import get_data_path, get_config_path
 
-from .kb_manager import KnowledgeBaseManager
+from .kb_manager import KnowledgeBaseManager, EmbeddingDimensionError
 from .chunking import RecursiveCharacterChunker
 from . import api_handlers as api
 
 
 class DummyEmbeddingClient:
-    """Fallback client used when no embedding model is configured."""
+    """Fallback client used when no embedding model is configured.
+
+    Kept only so read paths (health checks / model listing) can degrade
+    gracefully. Write paths must refuse to run with it — see
+    `_require_real_client`."""
+
+    is_dummy = True
 
     async def embed(self, texts: List[str]) -> List[List[float]]:
         import numpy as np
@@ -166,6 +172,46 @@ class KiraKBPlugin(BasePlugin):
         async def get_embedding_client():
             return embedding_client
 
+        def list_embedding_models() -> List[dict]:
+            """Enumerate every embedding model configured in KiraAI."""
+            models = []
+            try:
+                for provider_id, provider in self.ctx.provider_mgr.get_all_providers().items():
+                    try:
+                        infos = self.ctx.provider_mgr.get_model_infos(provider_id)
+                    except Exception:
+                        continue
+                    for info in infos:
+                        if getattr(info.model_type, "value", None) != "embedding":
+                            continue
+                        models.append({
+                            "uuid": f"{provider_id}:{info.model_id}",
+                            "model_id": info.model_id,
+                            "provider_id": provider_id,
+                            "provider_name": info.provider_name,
+                            "label": f"{info.provider_name} / {info.model_id}",
+                        })
+            except Exception as e:
+                logger.warning(f"[kiraKB] Failed to list embedding models: {e}")
+            models.sort(key=lambda m: m["label"].lower())
+            return models
+
+        def resolve_embedding_client(model_uuid: Optional[str]):
+            """Resolve a model_uuid to an embedding client, falling back to the
+            KiraAI default. Returns None when nothing usable is configured."""
+            if model_uuid:
+                try:
+                    client = self.ctx.get_embedding_client(model_uuid)
+                    if client is not None:
+                        return client
+                except Exception as e:
+                    logger.warning(f"[kiraKB] Failed to resolve embedding model '{model_uuid}': {e}")
+            client = embedding_client
+            if isinstance(client, DummyEmbeddingClient):
+                return None
+            return client
+
+
         stopwords_path = self.data_dir / "stopwords.txt"
         if not stopwords_path.exists():
             stopwords_path.touch()
@@ -186,6 +232,8 @@ class KiraKBPlugin(BasePlugin):
             enable_rerank=self.enable_rerank,
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
+            client_resolver=resolve_embedding_client,
+            model_lister=list_embedding_models,
         )
 
         await self.kb_manager.load_existing_kbs()
@@ -193,11 +241,17 @@ class KiraKBPlugin(BasePlugin):
         # Standalone WebUI (optional, off by default)
         if self.enable_webui and self.webui_port > 0 and self.kb_manager:
             from .web_server import WebUIServer
+            default_embedding_uuid = None
+            try:
+                default_embedding_uuid = self.ctx.kira_config.get_config("models.default_embedding")
+            except Exception:
+                default_embedding_uuid = None
             self._webui_server = WebUIServer(
                 kb_manager=self.kb_manager,
                 host=self.webui_host,
                 port=self.webui_port,
                 token=self.webui_token,
+                default_embedding_uuid=default_embedding_uuid,
             )
             await self._webui_server.start()
 
@@ -296,17 +350,28 @@ class KiraKBPlugin(BasePlugin):
 
         active_ver = await kb.get_active_version()
         if not active_ver:
+            if any(v.status != "ready" for v in kb._versions.values()):
+                return (f"知识库 '{kb_id}' 当前没有可用的激活版本："
+                        "已存在的版本都是不完整的建库残留，"
+                        "请在 WebUI 的版本管理中删除它们后重新创建版本。")
             return f"知识库 '{kb_id}' 没有激活的版本，请先在 WebUI 中创建版本或激活已有版本"
 
-        client = await kb.embedding_client_getter()
-        if isinstance(client, DummyEmbeddingClient):
-            return "嵌入模型未配置，无法检索。请在 KiraAI 主系统中配置默认嵌入模型。"
-        emb = await client.embed([query])
+        if active_ver.status != "ready":
+            return (
+                f"知识库 '{kb_id}' 的当前激活版本不完整（可能是一次失败的建库残留），"
+                "请在 WebUI 中删除它并重建版本。"
+            )
         top_k = top_k or self.default_top_k
-        results = await active_ver.search(
-            query, emb[0], top_k=top_k,
-            enable_hybrid=self.enable_hybrid,
-        )
+        try:
+            results = await active_ver.search(
+                query, top_k=top_k,
+                enable_hybrid=self.enable_hybrid,
+            )
+        except EmbeddingDimensionError as e:
+            return f"检索失败：{e}"
+        except Exception as e:
+            detail = str(e).strip() or type(e).__name__
+            return f"检索失败：{detail}"
         if not results:
             return "未找到相关信息"
         output = []
@@ -382,10 +447,8 @@ class KiraKBPlugin(BasePlugin):
             if not chunks:
                 return "文档内容为空，无法向量化"
 
-            client = await kb.embedding_client_getter()
-            if isinstance(client, DummyEmbeddingClient):
-                return f"文档已保存，但嵌入模型未配置，无法向量化。请在 KiraAI 主系统中配置默认嵌入模型。"
-            embeddings = await client.embed(chunks)
+            embeddings = await active_ver.embed_texts(chunks)
+            active_ver.check_dimension(embeddings)
             chunk_list = []
             for i, chunk_text in enumerate(chunks):
                 chunk_list.append({
@@ -440,6 +503,24 @@ class KiraKBPlugin(BasePlugin):
         await kb.delete_raw_document(doc_id, soft=True)
         return f"已删除知识条目 '{title}'（软删除），可从 WebUI 恢复。"
 
+    # ==================== Model selection / dimension probing ====================
+
+    @register.api(method="GET", path="/embedding-models", auth=True, summary="List embedding models")
+    async def api_embedding_models(self):
+        """Everything the version-creation dialog needs to fill itself in."""
+        try:
+            default_uuid = self.ctx.kira_config.get_config("models.default_embedding")
+        except Exception:
+            default_uuid = None
+        return api.embedding_models(self.kb_manager, default_uuid)
+
+    @register.api(method="POST", path="/embedding-models/probe", auth=True, summary="Probe embedding dimension")
+    async def api_probe_embedding(self, request: Request):
+        """Embed a short probe string and report the model's real dimension so
+        the UI can fill in the dimension field instead of asking the user to
+        know it by heart."""
+        body = await request.json()
+        return await api.probe_embedding(self.kb_manager, (body or {}).get("model_uuid"))
     # ==================== Sidebar WebUI (page + APIs) ====================
 
     @register.page("/index", menu=PageMenu(label={"zh": "知识库", "en": "Knowledge Base"}, icon="Collection", order=100))

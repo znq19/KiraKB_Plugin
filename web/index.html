@@ -275,10 +275,19 @@ button.small {
 <div id="versionModal" class="modal">
   <div class="modal-content">
     <h3>创建新版本</h3>
-    <label>模型名称</label>
+    <label>嵌入模型</label>
+    <select id="versionModelSelect" style="width:100%"></select>
+    <div class="hint" style="font-size:0.8rem; color:#666; margin:4px 0 10px;">
+      选择用于本版本的嵌入模型。留空则使用 KiraAI 的默认嵌入模型。
+    </div>
+    <label>模型名称（备注）</label>
     <input type="text" id="versionModelName" placeholder="例如 BAAI/bge-m3">
     <label>向量维度</label>
-    <input type="number" id="versionDimension" placeholder="例如 1024">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="number" id="versionDimension" placeholder="点击右侧按钮自动探测" style="flex:1">
+      <button type="button" class="small" id="probeDimensionBtn">探测维度</button>
+    </div>
+    <div id="probeStatus" class="hint" style="font-size:0.8rem; margin:4px 0 10px;"></div>
     <label>选择文档（可选，留空表示全部）</label>
     <select id="versionDocSelect" multiple size="5" style="width:100%"></select>
     <div class="hint" style="font-size:0.8rem; color:#666;">按住 Ctrl 多选</div>
@@ -558,11 +567,16 @@ async function loadVersions() {
         <div class="version-name">
           <strong>${escapeHtml(v.model_name)}</strong> (${v.dimension}维)
           <span class="badge ${v.is_active ? 'active' : ''}">${v.is_active ? '当前激活' : ''}</span>
+          ${(v.status && v.status !== 'ready')
+            ? '<span class="badge" style="background:#fee2e2;color:#b91c1c;">不完整・建库失败残留</span>'
+            : ''}
           <div style="font-size:0.7rem; color:#666;">创建于 ${new Date(v.created_at * 1000).toLocaleString()}</div>
         </div>
         <div>
-          ${!v.is_active ? `<button class="small" onclick="activateVersion('${v.version_id}')">激活</button>` : ''}
-          ${!v.is_active ? `<button class="small danger" onclick="deleteVersion('${v.version_id}')">删除</button>` : ''}
+          ${(!v.is_active && (!v.status || v.status === 'ready'))
+            ? `<button class="small" onclick="activateVersion('${v.version_id}')">激活</button>` : ''}
+          ${(!v.is_active || (v.status && v.status !== 'ready'))
+            ? `<button class="small danger" onclick="deleteVersion('${v.version_id}')">删除</button>` : ''}
         </div>
       </div>
     `).join('');
@@ -613,31 +627,145 @@ async function deleteVersion(versionId) {
   }
 }
 
+// ---- Embedding model picker + automatic dimension probing ----
+
+function setProbeStatus(msg, color) {
+  const el = document.getElementById('probeStatus');
+  el.textContent = msg || '';
+  el.style.color = color || '#666';
+}
+
+async function loadEmbeddingModels() {
+  const select = document.getElementById('versionModelSelect');
+  setProbeStatus('');
+  try {
+    const data = await api('/embedding-models');
+    const models = (data && data.models) || [];
+    const opts = ['<option value="">（使用 KiraAI 默认嵌入模型）</option>'];
+    for (const m of models) {
+      opts.push(`<option value="${escapeHtml(m.uuid)}">${escapeHtml(m.label)}</option>`);
+    }
+    select.innerHTML = opts.join('');
+    if (data && data.default_uuid) {
+      // If the configured default isn't among the registered embedding models,
+      // add it explicitly so the dropdown can still show what will be used.
+      if (!models.some(m => m.uuid === data.default_uuid)) {
+        const opt = document.createElement('option');
+        opt.value = data.default_uuid;
+        opt.textContent = data.default_uuid + '（KiraAI 默认）';
+        select.appendChild(opt);
+      }
+      select.value = data.default_uuid;
+    }
+    // Pre-fill the name (and clear a stale dimension) for the preselected model
+    // so the dialog is usable without touching the dropdown first.
+    syncModelName();
+    document.getElementById('versionDimension').value = '';
+    document.getElementById('versionModelName').dataset.auto = '1';
+    if (!models.length) {
+      setProbeStatus(
+        data && data.default_available
+          ? '未在 KiraAI 中单独登记嵌入模型，将使用默认嵌入模型。'
+          : '⚠ 未检测到可用嵌入模型，请先在 KiraAI 主系统中配置 default_embedding。',
+        data && data.default_available ? '#666' : '#b45309'
+      );
+    }
+  } catch (e) {
+    select.innerHTML = '<option value="">（使用 KiraAI 默认嵌入模型）</option>';
+    setProbeStatus('无法获取模型列表：' + e.message, '#b45309');
+  }
+}
+
+// Fill the model-name field from the chosen model, unless the user typed one.
+function syncModelName() {
+  const sel = document.getElementById('versionModelSelect');
+  const nameInput = document.getElementById('versionModelName');
+  if (!sel.value) return;
+  // Don't clobber a name the user typed by hand.
+  if (nameInput.value.trim() && nameInput.dataset.auto !== '1') return;
+  const label = sel.options[sel.selectedIndex]
+    ? sel.options[sel.selectedIndex].textContent
+    : '';
+  const short = label.includes(' / ') ? label.split(' / ').pop().trim() : label.trim();
+  if (short) {
+    nameInput.value = short;
+    nameInput.dataset.auto = '1';
+  }
+}
+
+document.getElementById('versionModelSelect').onchange = () => {
+  syncModelName();
+  setProbeStatus('');
+};
+
+// Once the user types a name by hand, stop auto-filling it from the dropdown.
+document.getElementById('versionModelName').addEventListener('input', () => {
+  document.getElementById('versionModelName').dataset.auto = '';
+});
+
+document.getElementById('probeDimensionBtn').onclick = async () => {
+  const btn = document.getElementById('probeDimensionBtn');
+  const uuid = document.getElementById('versionModelSelect').value || null;
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = '探测中…';
+  setProbeStatus('正在调用嵌入模型…');
+  try {
+    const res = await api('/embedding-models/probe', {
+      method: 'POST',
+      body: JSON.stringify({ model_uuid: uuid })
+    });
+    if (res.error) {
+      setProbeStatus('✗ ' + res.error, '#b91c1c');
+    } else {
+      document.getElementById('versionDimension').value = res.dimension;
+      setProbeStatus(`✓ 实际输出 ${res.dimension} 维，已自动填入`, '#15803d');
+    }
+  } catch (e) {
+    setProbeStatus('✗ 探测失败：' + e.message, '#b91c1c');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+};
+
 document.getElementById('createVersionBtn').onclick = async () => {
   if (!currentKbId) { await KB.alert('请先创建或选择一个知识库'); return; }
   const docs = await api(`/kbs/${encodeURIComponent(currentKbId)}/documents`);
   const select = document.getElementById('versionDocSelect');
   select.innerHTML = docs.map(d => `<option value="${d.doc_id}">${escapeHtml(d.name)}</option>`).join('');
   document.getElementById('versionModal').style.display = 'flex';
+  await loadEmbeddingModels();
 };
 
 document.getElementById('versionModalCreate').onclick = async () => {
+  const modelUuid = document.getElementById('versionModelSelect').value;
   const modelName = document.getElementById('versionModelName').value.trim();
-  const dimension = parseInt(document.getElementById('versionDimension').value);
-  if (!modelName || isNaN(dimension)) {
-    await KB.alert('请填写模型名称和维度');
+  const dimRaw = document.getElementById('versionDimension').value;
+  const dimension = parseInt(dimRaw, 10);
+  if (!modelName) {
+    await KB.alert('请填写模型名称（备注）');
+    return;
+  }
+  if (!dimRaw || isNaN(dimension) || dimension <= 0) {
+    await KB.alert('请填写向量维度，或点击「探测维度」自动获取');
     return;
   }
   const select = document.getElementById('versionDocSelect');
   const selectedOptions = Array.from(select.selectedOptions);
   const docIds = selectedOptions.map(opt => opt.value);
   const payload = { model_name: modelName, dimension: dimension };
+  if (modelUuid) payload.model_uuid = modelUuid;
   if (docIds.length > 0) payload.doc_ids = docIds;
   try {
     const res = await api(`/kbs/${encodeURIComponent(currentKbId)}/versions`, {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+    if (res && res.error) {
+      await KB.alert('创建失败: ' + res.error);
+      return;
+    }
     await KB.alert(`任务已创建，ID: ${res.task_id}，请稍后在任务列表中查看进度`);
     document.getElementById('versionModal').style.display = 'none';
     startTaskPolling();
@@ -674,7 +802,11 @@ document.getElementById('searchBtn').onclick = async () => {
       body: JSON.stringify({ query, top_k: 5 })
     });
     const container = document.getElementById('searchResults');
-    if (results.length === 0) {
+    if (results && results.error) {
+      container.innerHTML = `<p style="color:#b91c1c;">检索失败：${escapeHtml(results.error)}</p>`;
+      return;
+    }
+    if (!Array.isArray(results) || results.length === 0) {
       container.innerHTML = '<p>未找到相关结果</p>';
       return;
     }
@@ -685,7 +817,8 @@ document.getElementById('searchBtn').onclick = async () => {
       </div>
     `).join('');
   } catch (e) {
-    document.getElementById('searchResults').innerHTML = `<p>检索失败: ${e.message}</p>`;
+    document.getElementById('searchResults').innerHTML =
+      `<p style="color:#b91c1c;">检索失败：${escapeHtml(e.message)}</p>`;
   }
 };
 

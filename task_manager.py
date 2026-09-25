@@ -66,10 +66,17 @@ class TaskManager:
             task.status = TaskStatus.COMPLETED
             task.progress = 100
             task.result = result
-        except Exception as e:
+        except BaseException as e:
             task.status = TaskStatus.FAILED
-            task.message = str(e)
-            logger.error(f"Task {task_id} failed: {e}", exc_info=True)
+            # Some exceptions stringify to "" (notably a bare FAISS
+            # AssertionError on a dimension mismatch), which used to produce the
+            # useless log line "Task xxx failed: " with nothing after the colon.
+            detail = str(e).strip() or f"{type(e).__name__}（无错误消息）"
+            task.message = detail
+            if isinstance(e, asyncio.CancelledError):
+                logger.warning(f"Task {task_id} cancelled")
+                raise
+            logger.error(f"Task {task_id} failed: {detail}", exc_info=True)
 
     def get_task(self, task_id: str) -> Optional[Task]:
         return self.tasks.get(task_id)

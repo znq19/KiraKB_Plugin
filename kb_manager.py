@@ -1,5 +1,6 @@
 
 import asyncio
+import inspect
 import json
 import re
 import shutil
@@ -17,15 +18,24 @@ from core.logging_manager import get_logger
 logger = get_logger("kb_manager", "cyan")
 
 
+class EmbeddingDimensionError(RuntimeError):
+    """Raised when the embedding model's real output dimension does not match
+    the dimension the vector index was built with. Carries a human-readable
+    message so users never hit a bare FAISS assertion again."""
+
+
 class KnowledgeBaseVersion:
     def __init__(self, kb_id: str, version_id: str, version_path: Path,
                  model_name: str, dimension: int, created_at: float,
                  stopwords_path: str = None, default_stopwords_path: str = None,
-                 rerank_client=None, enable_rerank: bool = False):
+                 rerank_client=None, enable_rerank: bool = False,
+                 model_uuid: str = None, client_resolver: Callable = None,
+                 status: str = "ready"):
         self.kb_id = kb_id
         self.version_id = version_id
         self.path = version_path
         self.model_name = model_name
+        self.model_uuid = model_uuid
         self.dimension = dimension
         self.created_at = created_at
         self.vector_store = VectorStore(str(self.path / "vectors"))
@@ -34,6 +44,10 @@ class KnowledgeBaseVersion:
         self.default_stopwords_path = default_stopwords_path
         self.rerank_client = rerank_client
         self.enable_rerank = enable_rerank
+        # "ready" | "incomplete": incomplete versions can still be listed and
+        # deleted from the WebUI, but are never auto-activated and never searched.
+        self.status = status
+        self._client_resolver = client_resolver
         self._initialized = False
 
     async def initialize(self):
@@ -44,12 +58,81 @@ class KnowledgeBaseVersion:
             )
             self._initialized = True
 
-    async def search(self, query: str, query_embedding: List[float],
+    # ------------------------------------------------------------------
+    # Embedding. Each version embeds with its OWN model, so later changes to
+    # the global default_embedding can never silently corrupt a version.
+    # ------------------------------------------------------------------
+    async def get_client(self):
+        if self._client_resolver is None:
+            return None
+        resolved = self._client_resolver(self.model_uuid)
+        # Resolvers may be sync or async — normalise both.
+        if inspect.isawaitable(resolved):
+            resolved = await resolved
+        return resolved
+
+    async def embed_texts(self, texts: List[str], retries: int = 3) -> List[List[float]]:
+        """Embed texts, retrying transient failures.
+
+        Raises a descriptive EmbeddingDimensionError instead of returning an
+        empty list — an empty list used to surface frames later as a bare
+        ValueError or a message-less FAISS assertion."""
+        if not texts:
+            return []
+        client = await self.get_client()
+        if client is None:
+            raise EmbeddingDimensionError(
+                "无法获取嵌入模型客户端：请检查 KiraAI 的 default_embedding 配置，"
+                "或为本版本选择一个可用的嵌入模型。"
+            )
+        last_err = None
+        vectors = None
+        attempts = max(1, retries)
+        for attempt in range(attempts):
+            try:
+                vectors = await client.embed(texts)
+            except Exception as e:  # surfaced to the user below
+                last_err = e
+                vectors = None
+            if vectors:
+                break
+            if attempt < attempts - 1:
+                await asyncio.sleep(0.8 * (attempt + 1))
+        if not vectors:
+            detail = f"{type(last_err).__name__}: {last_err}" if last_err else "嵌入模型返回空结果"
+            raise EmbeddingDimensionError(
+                f"嵌入模型调用失败（已重试 {attempts} 次）：{detail}。"
+                "请检查 KiraAI 主系统中该嵌入模型的 API Key / 网络 / 模型名是否正确。"
+            )
+        return vectors
+
+    def check_dimension(self, vectors: List[List[float]]):
+        """Validate a batch of vectors against this version's index dimension."""
+        if not vectors:
+            raise EmbeddingDimensionError("嵌入模型返回了空向量列表。")
+        actual = len(vectors[0])
+        if actual != self.dimension:
+            raise EmbeddingDimensionError(
+                f"向量维度不匹配：本版本按 {self.dimension} 维建立索引，"
+                f"但嵌入模型实际输出 {actual} 维。"
+                f"请用 {actual} 维重建版本，或让本版本改用与索引维度一致的嵌入模型。"
+            )
+
+    async def search(self, query: str,
                      top_k: int = 5, enable_hybrid: bool = True) -> List[Dict]:
+        """Embed the query with this version's own model, then search.
+
+        Embedding happens inside the version (instead of the caller passing a
+        vector in) so query and stored vectors can never come from two
+        different models."""
         if not self._initialized:
             await self.initialize()
+        if self.status != "ready":
+            return []
+        emb = await self.embed_texts([query])
+        self.check_dimension(emb)
         results = await self.retriever.search(
-            query, query_embedding, top_k=top_k, enable_hybrid=enable_hybrid
+            query, emb[0], top_k=top_k, enable_hybrid=enable_hybrid
         )
         # Optional rerank pass
         if self.enable_rerank and self.rerank_client and results:
@@ -92,6 +175,8 @@ class KnowledgeBaseVersion:
         chunk_ids = mapping.pop(doc_id, [])
         if not chunk_ids:
             return 0
+        if self.vector_store.index is None:
+            return 0
         await self.vector_store.delete_by_chunk_ids(chunk_ids)
         with open(mapping_path, "w") as f:
             json.dump(mapping, f)
@@ -114,7 +199,7 @@ class KnowledgeBase:
                  stopwords_path: str = None, default_stopwords_path: str = None,
                  vlm_client=None, rerank_client=None,
                  enable_rerank: bool = False, chunk_size: int = 500,
-                 chunk_overlap: int = 50):
+                 chunk_overlap: int = 50, client_resolver: Callable = None):
         self.kb_id = kb_id
         self.kb_dir = kb_dir
         self.raw_docs_dir = kb_dir / "raw_docs"
@@ -123,6 +208,9 @@ class KnowledgeBase:
         self.versions_dir.mkdir(parents=True, exist_ok=True)
 
         self.embedding_client_getter = embedding_client_getter
+        # Resolves a model_uuid -> embedding client. Versions use this so each
+        # one keeps embedding with the model it was built with.
+        self.client_resolver = client_resolver
         self.stopwords_path = stopwords_path
         self.default_stopwords_path = default_stopwords_path
         self.vlm_client = vlm_client
@@ -182,6 +270,27 @@ class KnowledgeBase:
             try:
                 with open(model_info_path, "r") as f:
                     model_info = json.load(f)
+                # "ready" / "incomplete" detection.
+                #
+                # New versions (v1.1.4+) record an explicit "status" in
+                # model_info.json, and that file is only written once the build
+                # fully succeeds. So a legitimately EMPTY knowledge base (zero
+                # documents, hence no index) is still correctly "ready".
+                #
+                # Legacy versions wrote model_info.json up-front and never
+                # recorded a status, so fall back to requiring an index.faiss —
+                # that is what still catches an old half-built leftover.
+                index_path = ver_dir / "vectors" / "index.faiss"
+                recorded = model_info.get("status")
+                if recorded in ("ready", "incomplete"):
+                    status = recorded
+                else:
+                    status = "ready" if index_path.exists() else "incomplete"
+                if status != "ready":
+                    logger.warning(
+                        f"Version {version_id} is incomplete ({recorded or 'no index.faiss'}) — "
+                        f"it will not be activated or searched; delete it from the WebUI."
+                    )
                 version = KnowledgeBaseVersion(
                     kb_id=self.kb_id,
                     version_id=version_id,
@@ -193,15 +302,40 @@ class KnowledgeBase:
                     default_stopwords_path=self.default_stopwords_path,
                     rerank_client=self.rerank_client,
                     enable_rerank=self.enable_rerank,
+                    model_uuid=model_info.get("model_uuid"),
+                    client_resolver=self.client_resolver,
+                    status=status,
                 )
-                await version.initialize()
+                try:
+                    await version.initialize()
+                except Exception as init_err:
+                    # e.g. a truncated/corrupt index.faiss. Keep the version
+                    # registered as "incomplete" so it stays VISIBLE and
+                    # DELETABLE in the WebUI instead of silently disappearing.
+                    version.status = "incomplete"
+                    logger.warning(
+                        f"Version {version_id} failed to initialise ({init_err}) — "
+                        f"marked incomplete; delete it from the WebUI."
+                    )
                 self._versions[version_id] = version
             except Exception as e:
                 logger.warning(f"Failed to load version {version_id}: {e}")
+        # Only ever auto-activate a fully built version. Never silently adopt a
+        # half-written leftover directory.
+        usable = [v for v in self._versions.values() if v.status == "ready"]
         if self._current_version_id and self._current_version_id in self._versions:
-            self._active_version = self._versions[self._current_version_id]
-        elif self._versions:
-            first = list(self._versions.values())[0]
+            active = self._versions[self._current_version_id]
+            if active.status == "ready":
+                self._active_version = active
+            else:
+                self._active_version = None
+                logger.warning(
+                    f"Active version {self._current_version_id} is incomplete; "
+                    f"no version is active. Please rebuild or activate another version."
+                )
+        elif usable:
+            # Deterministic pick: newest first, instead of "whatever iterated first".
+            first = max(usable, key=lambda v: v.created_at)
             self._active_version = first
             self._current_version_id = first.version_id
             self._save_current_version(first.version_id)
@@ -214,24 +348,26 @@ class KnowledgeBase:
     async def set_active_version(self, version_id: str) -> bool:
         if version_id not in self._versions:
             return False
+        # Enforce the invariant here too, not only in the API layer, so no
+        # caller can activate a half-built version by accident.
+        if self._versions[version_id].status != "ready":
+            return False
         self._active_version = self._versions[version_id]
         self._current_version_id = version_id
         self._save_current_version(version_id)
         return True
 
     async def create_version(self, model_name: str, dimension: int, doc_ids: Optional[List[str]] = None,
-                             callback_progress: Optional[Callable] = None) -> str:
+                             callback_progress: Optional[Callable] = None,
+                             model_uuid: Optional[str] = None) -> str:
         version_id = f"{model_name.replace('/', '_')}_{int(time.time())}"
         version_path = self.versions_dir / version_id
+        # Two versions created within the same second would otherwise collide on
+        # the directory name, making the second one fail with FileExistsError.
+        if version_path.exists():
+            version_id = f"{version_id}_{uuid.uuid4().hex[:6]}"
+            version_path = self.versions_dir / version_id
         version_path.mkdir(parents=True)
-
-        model_info = {
-            "model_name": model_name,
-            "dimension": dimension,
-            "created_at": time.time()
-        }
-        with open(version_path / "model_info.json", "w") as f:
-            json.dump(model_info, f)
 
         version = KnowledgeBaseVersion(
             kb_id=self.kb_id,
@@ -244,51 +380,103 @@ class KnowledgeBase:
             default_stopwords_path=self.default_stopwords_path,
             rerank_client=self.rerank_client,
             enable_rerank=self.enable_rerank,
+            model_uuid=model_uuid,
+            client_resolver=self.client_resolver,
         )
-        await version.initialize()
 
-        all_docs = self.list_raw_documents(include_deleted=False)
-        if doc_ids is None:
-            doc_ids = [d["doc_id"] for d in all_docs]
-        else:
-            doc_ids = [d for d in doc_ids if any(dd["doc_id"] == d for dd in all_docs)]
+        try:
+            await version.initialize()
 
-        total = len(doc_ids)
-        for idx, doc_id in enumerate(doc_ids):
-            doc_path = self.raw_docs_dir / f"{doc_id}.txt"
-            if not doc_path.exists():
-                continue
-            content = doc_path.read_text(encoding="utf-8")
-            chunker = RecursiveCharacterChunker(
-                chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
-            )
-            chunks = chunker.split_text(content)
-            if not chunks:
-                continue
-            client = await self.embedding_client_getter()
-            embeddings = await client.embed(chunks)
-            chunk_list = []
-            for i, chunk_text in enumerate(chunks):
-                chunk_list.append({
-                    "doc_name": f"{doc_id}.txt",
-                    "content": chunk_text,
-                    "metadata": {"doc_id": doc_id, "chunk_index": i}
-                })
-            await version.add_chunks_for_document(doc_id, chunk_list, embeddings)
+            # --- Dimension guard -------------------------------------------
+            # Probe the model once and refuse to build an index whose dimension
+            # disagrees with what the model actually returns. Without this the
+            # mismatch only surfaced later as a bare FAISS AssertionError whose
+            # str() is empty (the "Task xxx failed: " with nothing after it).
+            probe = await version.embed_texts(["dimension probe"])
+            version.check_dimension(probe)
+            if doc_ids is None:
+                total_docs = len(self.list_raw_documents(include_deleted=False))
+            else:
+                total_docs = len(doc_ids)
             if callback_progress:
-                await callback_progress(idx+1, total, doc_id)
+                await callback_progress(0, max(1, total_docs), "开始向量化…")
 
-        self._versions[version_id] = version
-        return version_id
+            all_docs = self.list_raw_documents(include_deleted=False)
+            if doc_ids is None:
+                doc_ids = [d["doc_id"] for d in all_docs]
+            else:
+                doc_ids = [d for d in doc_ids if any(dd["doc_id"] == d for dd in all_docs)]
+
+            total = len(doc_ids)
+            for idx, doc_id in enumerate(doc_ids):
+                doc_path = self.raw_docs_dir / f"{doc_id}.txt"
+                if not doc_path.exists():
+                    continue
+                content = doc_path.read_text(encoding="utf-8")
+                chunker = RecursiveCharacterChunker(
+                    chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
+                )
+                chunks = chunker.split_text(content)
+                if not chunks:
+                    continue
+                embeddings = await version.embed_texts(chunks)
+                version.check_dimension(embeddings)
+                chunk_list = []
+                for i, chunk_text in enumerate(chunks):
+                    chunk_list.append({
+                        "doc_name": f"{doc_id}.txt",
+                        "content": chunk_text,
+                        "metadata": {"doc_id": doc_id, "chunk_index": i}
+                    })
+                await version.add_chunks_for_document(doc_id, chunk_list, embeddings)
+                if callback_progress:
+                    await callback_progress(idx+1, total, doc_id)
+
+            # model_info.json is written only after a fully successful build, so
+            # a leftover directory can never masquerade as a valid version.
+            model_info = {
+                "model_name": model_name,
+                "model_uuid": model_uuid,
+                "dimension": dimension,
+                "created_at": version.created_at,
+                "status": "ready",
+            }
+            with open(version_path / "model_info.json", "w") as f:
+                json.dump(model_info, f)
+
+            self._versions[version_id] = version
+            return version_id
+        except BaseException:
+            # Roll back the half-built directory instead of leaving a "ghost"
+            # version that would be auto-activated after the next reload.
+            try:
+                await version.close()
+            except Exception:
+                pass
+            await asyncio.to_thread(shutil.rmtree, version_path, True)
+            raise
 
     async def delete_version(self, version_id: str) -> bool:
         if version_id not in self._versions:
             return False
-        if self._current_version_id == version_id:
+        target = self._versions[version_id]
+        # An incomplete (failed) version is useless and must always be
+        # deletable — otherwise a half-built leftover could never be removed
+        # through the WebUI once it became the active version.
+        if self._current_version_id == version_id and target.status == "ready":
             return False
-        await self._versions[version_id].close()
+        await target.close()
         await asyncio.to_thread(shutil.rmtree, self.versions_dir / version_id)
         del self._versions[version_id]
+        if self._current_version_id == version_id:
+            self._current_version_id = None
+            self._active_version = None
+            cur_path = self.kb_dir / "current_version"
+            try:
+                if cur_path.exists():
+                    cur_path.unlink()
+            except Exception:
+                pass
         return True
 
     def list_raw_documents(self, include_deleted: bool = False) -> List[Dict]:
@@ -345,8 +533,8 @@ class KnowledgeBase:
                     )
                     chunks = chunker.split_text(content)
                     if chunks:
-                        client = await self.embedding_client_getter()
-                        embeddings = await client.embed(chunks)
+                        embeddings = await active_ver.embed_texts(chunks)
+                        active_ver.check_dimension(embeddings)
                         chunk_list = []
                         for i, chunk_text in enumerate(chunks):
                             chunk_list.append({
@@ -421,10 +609,14 @@ class KnowledgeBaseManager:
     def __init__(self, base_dir: str, embedding_client_getter: Callable[[], Awaitable],
                  stopwords_path: str = None, default_stopwords_path: str = None,
                  vlm_client=None, rerank_client=None, enable_rerank: bool = False,
-                 chunk_size: int = 500, chunk_overlap: int = 50):
+                 chunk_size: int = 500, chunk_overlap: int = 50,
+                 client_resolver: Callable = None, model_lister: Callable = None):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.embedding_client_getter = embedding_client_getter
+        self.client_resolver = client_resolver
+        # Returns the configured embedding models (for the version dialog).
+        self.model_lister = model_lister
         self.stopwords_path = stopwords_path
         self.default_stopwords_path = default_stopwords_path
         self.vlm_client = vlm_client
@@ -448,6 +640,7 @@ class KnowledgeBaseManager:
                 self.stopwords_path, self.default_stopwords_path,
                 self.vlm_client, self.rerank_client, self.enable_rerank,
                 self.chunk_size, self.chunk_overlap,
+                client_resolver=self.client_resolver,
             )
             await kb.load_versions()
             self.kbs[kb_id] = kb
@@ -465,6 +658,7 @@ class KnowledgeBaseManager:
             self.stopwords_path, self.default_stopwords_path,
             self.vlm_client, self.rerank_client, self.enable_rerank,
             self.chunk_size, self.chunk_overlap,
+            client_resolver=self.client_resolver,
         )
         kb.info = {"display_name": kb_id, "description": ""}
         kb._save_info()
