@@ -70,6 +70,7 @@ class KiraKBPlugin(BasePlugin):
         self._migrate_config(cfg)
 
         sec_basic = cfg.get("section_basic", {})
+        sec_ui = cfg.get("section_ui", {})
         sec_webui = cfg.get("section_webui", {})
         sec_perm = cfg.get("section_permission", {})
         sec_recall = cfg.get("section_recall", {})
@@ -91,6 +92,19 @@ class KiraKBPlugin(BasePlugin):
         self.ignore_time = bool(sec_basic.get("ignore_time", True))
         self.auto_install_dependencies = bool(sec_basic.get("auto_install_dependencies", True))
         self.lexical_min_score = max(0, min(20, int(sec_recall.get("lexical_min_score", 2))))
+
+        self.ui_theme = str(sec_ui.get("theme", "violet") or "violet")
+        self.ui_crt = str(sec_ui.get("crt", "high") or "high")
+        self.ui_performance = bool(sec_ui.get("performance", False))
+        self.ui_splash = bool(sec_ui.get("splash", True))
+        self.ui_text_fx = str(sec_ui.get("text_fx", "mix") or "mix")
+        self.ui_fx_loop = bool(sec_ui.get("fx_loop", True))
+        self.ui_fx_interval = max(4, min(15, int(sec_ui.get("fx_interval", 6) or 6)))
+        self.ui_quote_enabled = bool(sec_ui.get("quote_enabled", True))
+        self.ui_quote_interval = max(4, min(30, int(sec_ui.get("quote_interval", 9) or 9)))
+        self.ui_quote_kb_ids = [str(v).strip() for v in (sec_ui.get("quote_kb_ids") or []) if str(v).strip()]
+        self.ui_quote_custom_lines = [str(v).strip() for v in (sec_ui.get("quote_custom_lines") or []) if str(v).strip()]
+        self.ui_quote_custom_mottos = [str(v).strip() for v in (sec_ui.get("quote_custom_mottos") or []) if str(v).strip()]
 
         self.enable_webui = bool(sec_webui.get("enable_webui", False))
         self.webui_port = int(sec_webui.get("webui_port", 19122))
@@ -423,6 +437,20 @@ class KiraKBPlugin(BasePlugin):
                 "default_delete_policy": self.default_policies["delete"],
             },
             "recall": dict(self.recall_config),
+            "ui": {
+                "theme": self.ui_theme,
+                "crt": self.ui_crt,
+                "performance": self.ui_performance,
+                "splash": self.ui_splash,
+                "text_fx": self.ui_text_fx,
+                "fx_loop": self.ui_fx_loop,
+                "fx_interval": self.ui_fx_interval,
+                "quote_enabled": self.ui_quote_enabled,
+                "quote_interval": self.ui_quote_interval,
+                "quote_kb_ids": list(self.ui_quote_kb_ids),
+                "quote_custom_lines": list(self.ui_quote_custom_lines),
+                "quote_custom_mottos": list(self.ui_quote_custom_mottos),
+            },
             "storage": {
                 "knowledge_base_dir": self.kb_base_dir,
             },
@@ -607,6 +635,43 @@ class KiraKBPlugin(BasePlugin):
             if error:
                 warnings.append(error)
 
+        ui = payload.get("ui") or {}
+        if isinstance(ui, dict):
+            themes = ("violet", "pink", "blue", "amber", "sg", "green", "red", "gray")
+            if "theme" in ui:
+                self.ui_theme = str(ui.get("theme") or "violet")
+                if self.ui_theme not in themes:
+                    self.ui_theme = "violet"
+            if "crt" in ui:
+                self.ui_crt = str(ui.get("crt") or "high")
+                if self.ui_crt not in ("off", "low", "medium", "high"):
+                    self.ui_crt = "high"
+            if "performance" in ui:
+                self.ui_performance = bool(ui.get("performance"))
+            if "splash" in ui:
+                self.ui_splash = bool(ui.get("splash"))
+            if "text_fx" in ui:
+                self.ui_text_fx = str(ui.get("text_fx") or "mix")
+                if self.ui_text_fx not in ("mix", "radio", "pulse", "type", "decode", "scan", "glitch"):
+                    self.ui_text_fx = "mix"
+            if "fx_loop" in ui:
+                self.ui_fx_loop = bool(ui.get("fx_loop"))
+            if "fx_interval" in ui:
+                self.ui_fx_interval = clamp_int(ui.get("fx_interval"), self.ui_fx_interval, 4, 15)
+            if "quote_enabled" in ui:
+                self.ui_quote_enabled = bool(ui.get("quote_enabled"))
+            if "quote_interval" in ui:
+                self.ui_quote_interval = clamp_int(ui.get("quote_interval"), self.ui_quote_interval, 4, 30)
+            if "quote_kb_ids" in ui:
+                value = ui.get("quote_kb_ids")
+                self.ui_quote_kb_ids = [str(v).strip() for v in value if str(v).strip()] if isinstance(value, list) else []
+            if "quote_custom_lines" in ui:
+                value = ui.get("quote_custom_lines")
+                self.ui_quote_custom_lines = [str(v).strip() for v in value if str(v).strip()] if isinstance(value, list) else []
+            if "quote_custom_mottos" in ui:
+                value = ui.get("quote_custom_mottos")
+                self.ui_quote_custom_mottos = [str(v).strip() for v in value if str(v).strip()] if isinstance(value, list) else []
+
         self._persist_settings()
         return {"ok": True, "settings": self._settings_snapshot(), "warnings": warnings}
 
@@ -714,6 +779,21 @@ class KiraKBPlugin(BasePlugin):
                 "webui_host": self.webui_host,
                 "webui_port": self.webui_port,
                 "webui_token": self.webui_token,
+            })
+            ui_cfg = cfg.setdefault("section_ui", {})
+            ui_cfg.update({
+                "theme": self.ui_theme,
+                "crt": self.ui_crt,
+                "performance": self.ui_performance,
+                "splash": self.ui_splash,
+                "text_fx": self.ui_text_fx,
+                "fx_loop": self.ui_fx_loop,
+                "fx_interval": self.ui_fx_interval,
+                "quote_enabled": self.ui_quote_enabled,
+                "quote_interval": self.ui_quote_interval,
+                "quote_kb_ids": list(self.ui_quote_kb_ids),
+                "quote_custom_lines": list(self.ui_quote_custom_lines),
+                "quote_custom_mottos": list(self.ui_quote_custom_mottos),
             })
             rec = cfg.setdefault("section_recall", {})
             rec.update({

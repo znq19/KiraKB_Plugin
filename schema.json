@@ -98,6 +98,92 @@
             }
         }
     },
+    "section_ui": {
+        "type": "section",
+        "name": "机台皮肤",
+        "collapsed": false,
+        "fields": {
+            "theme": {
+                "name": "配色主题",
+                "type": "string",
+                "default": "violet",
+                "options": ["violet", "pink", "blue", "amber", "sg", "green", "red", "gray"],
+                "hint": "前端显像管配色。默认紫；粉色为新增主题。"
+            },
+            "crt": {
+                "name": "CRT 强度",
+                "type": "string",
+                "default": "high",
+                "options": ["off", "low", "medium", "high"],
+                "hint": "扫描线、噪点与玻璃反光的强度。默认高。"
+            },
+            "performance": {
+                "name": "性能模式",
+                "type": "switch",
+                "default": false,
+                "hint": "关闭扫描线、噪点与部分转场，保留配色与布局。"
+            },
+            "splash": {
+                "name": "开屏特效",
+                "type": "switch",
+                "default": true,
+                "hint": "加载时播放 KIRAKB 信号锁定开屏，可点击跳过。"
+            },
+            "text_fx": {
+                "name": "文字特效",
+                "type": "string",
+                "default": "mix",
+                "options": ["mix", "radio", "pulse", "type", "decode", "scan", "glitch"],
+                "hint": "标题与字幕的入场/常态效果；混合会按页面和字幕轮换。"
+            },
+            "fx_loop": {
+                "name": "随机复播",
+                "type": "switch",
+                "default": true,
+                "hint": "每隔一段时间从当前页标题、面板标题、统计数字、条目名中随机重播文字特效。"
+            },
+            "fx_interval": {
+                "name": "复播间隔（秒）",
+                "type": "integer",
+                "default": 6,
+                "minimum": 4,
+                "maximum": 15,
+                "hint": "随机复播的间隔；性能模式会暂停。"
+            },
+            "quote_enabled": {
+                "name": "随机字幕",
+                "type": "switch",
+                "default": true,
+                "hint": "从所选知识库的真实条目正文中抽取句子，在顶部抽取台与底部字幕轨播放。"
+            },
+            "quote_interval": {
+                "name": "字幕轮换间隔（秒）",
+                "type": "integer",
+                "default": 9,
+                "minimum": 4,
+                "maximum": 30,
+                "hint": "自动换句间隔；关闭随机字幕后不再轮换。"
+            },
+            "quote_kb_ids": {
+                "name": "字幕知识库",
+                "type": "list",
+                "default": [],
+                "hint": "参与字幕抽取的知识库 ID 列表；留空表示全部知识库。"
+            },
+            "quote_custom_lines": {
+                "name": "自定义台词池",
+                "type": "list",
+                "default": [],
+                "hint": "每行一条；有内容时优先于知识库原文，用于自定义台词。"
+            },
+            "quote_custom_mottos": {
+                "name": "自定义格言",
+                "type": "list",
+                "default": [],
+                "hint": "每行一条；有内容时替换内置格言池。"
+            }
+        }
+    },
     "section_webui": {
         "type": "section",
         "name": "WebUI 设置",

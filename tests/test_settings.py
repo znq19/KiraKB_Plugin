@@ -228,6 +228,18 @@ async def main_async():
         ("section_basic", "enable_lexical_search"): ("search", "enable_lexical_search"),
         ("section_basic", "ignore_time"): ("search", "ignore_time"),
         ("section_basic", "auto_install_dependencies"): ("search", "auto_install_dependencies"),
+        ("section_ui", "theme"): ("ui", "theme"),
+        ("section_ui", "crt"): ("ui", "crt"),
+        ("section_ui", "performance"): ("ui", "performance"),
+        ("section_ui", "splash"): ("ui", "splash"),
+        ("section_ui", "text_fx"): ("ui", "text_fx"),
+        ("section_ui", "fx_loop"): ("ui", "fx_loop"),
+        ("section_ui", "fx_interval"): ("ui", "fx_interval"),
+        ("section_ui", "quote_enabled"): ("ui", "quote_enabled"),
+        ("section_ui", "quote_interval"): ("ui", "quote_interval"),
+        ("section_ui", "quote_kb_ids"): ("ui", "quote_kb_ids"),
+        ("section_ui", "quote_custom_lines"): ("ui", "quote_custom_lines"),
+        ("section_ui", "quote_custom_mottos"): ("ui", "quote_custom_mottos"),
         ("section_webui", "enable_webui"): ("webui", "enable_webui"),
         ("section_webui", "webui_port"): ("webui", "webui_port"),
         ("section_webui", "webui_host"): ("webui", "webui_host"),
@@ -262,6 +274,9 @@ async def main_async():
         "setKbDir", "setChunkSize", "setChunkOverlap", "setTopK", "setHybrid",
         "setStopwords", "setRerank", "setTitleMax", "setExtraTools", "setAutoSync",
         "setHistoryKeep", "setLexical", "setIgnoreTime", "setAutoInstallDeps",
+        "setUiTheme", "setUiCrt", "setUiPerf", "setUiSplash", "setUiTextFx", "setUiFxLoop",
+        "setUiFxInterval", "setUiQuoteEnabled", "setUiQuoteInterval", "setUiQuoteKbs",
+        "setUiQuoteLines", "setUiQuoteMottos",
         "setEnableWebui", "setWebHost", "setWebPort", "setWebToken",
         "setAddPolicy", "setEditPolicy", "setDeletePolicy", "setOwnerWhitelist",
         "setRecallEnabled", "setRecallMode", "setRecallTopK", "setRecallMin",
@@ -270,6 +285,21 @@ async def main_async():
     ]
     missing_ids = [i for i in ids if f'id="{i}"' not in html]
     check("每个配置都有前端控件", not missing_ids, str(missing_ids))
+
+    print("\nS9  机台皮肤配置往返")
+    res = await plugin._apply_settings({"ui": {
+        "theme": "pink", "crt": "high", "performance": False, "splash": True,
+        "text_fx": "radio", "fx_loop": True, "fx_interval": 7,
+        "quote_enabled": True, "quote_interval": 11, "quote_kb_ids": ["test"],
+        "quote_custom_lines": ["自定义台词"], "quote_custom_mottos": ["自定义格言"],
+    }})
+    ui = plugin._settings_snapshot()["ui"]
+    check("UI 主题写入", ui["theme"] == "pink", str(ui.get("theme")))
+    check("UI 字幕参数写入", ui["fx_interval"] == 7 and ui["quote_interval"] == 11,
+          str({k: ui.get(k) for k in ("fx_interval", "quote_interval")}))
+    check("UI 自定义台词/格言写入",
+          ui["quote_kb_ids"] == ["test"] and ui["quote_custom_lines"] == ["自定义台词"]
+          and ui["quote_custom_mottos"] == ["自定义格言"], str(ui))
 
     await plugin.terminate()
 

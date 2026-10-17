@@ -1,2361 +1,323 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<!doctype html>
+<html lang="zh-CN" data-theme="violet">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script>try{if(localStorage.getItem("kirakb-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
-<title>KiraKB — 知识库</title>
-<style>
-:root{
-  /* default: day mode, lilac white (the pre-1.2 palette family) */
-  --ink:#f7f4ff; --ink-2:#ffffff; --ink-3:#efe9ff; --paper:#241c3d;
-  --muted:#6f6889; --faint:#9a93b0;
-  --line:rgba(84,62,150,.12); --line-2:rgba(84,62,150,.22);
-  --acid:#7c5cff; --violet:#a78bfa; --cyan:#0f9b8e; --danger:#e11d48;
-  --ok:#0f9b8e; --warn:#b26a00; --info:#6d4aff; --bad:#d61f4a;
-  --card-grad:linear-gradient(180deg,#ffffff,#fbf9ff);
-  --hover:rgba(124,92,255,.07);
-  --rail-bg:rgba(255,255,255,.80);
-  --top-bg:rgba(249,246,255,.86);
-  --sheet-bg:linear-gradient(180deg,#ffffff,#fbf9ff);
-  --toast-bg:#ffffff;
-  --backdrop:rgba(45,32,80,.38);
-  --track:rgba(84,62,150,.16);
-  --progress-bg:rgba(84,62,150,.10);
-  --shadow:0 24px 70px rgba(80,50,150,.16);
-  --glow:radial-gradient(circle,rgba(124,92,255,.12),rgba(240,171,252,.08) 45%,transparent 70%);
-  --glow-opacity:.8; --grain-opacity:.035; --grain-blend:multiply; --aurora-opacity:.22;
-  --accent-soft:rgba(124,92,255,.07);
-  --accent-line:rgba(124,92,255,.32);
-  --accent-line-strong:rgba(124,92,255,.48);
-  --radius:22px; --radius-sm:14px;
-  --display:"Instrument Serif","Bodoni MT","Times New Roman","Songti SC","Noto Serif SC",serif;
-  --sans:"Inter","SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
-  --mono:"SF Mono","JetBrains Mono","Cascadia Code",ui-monospace,Menlo,monospace;
-}
-html[data-theme="dark"]{
-  --ink:#07080a; --ink-2:#0b0d11; --ink-3:#11141a; --paper:#f3f0e8;
-  --muted:#8c919b; --faint:#5b606a;
-  --line:rgba(243,240,232,.10); --line-2:rgba(243,240,232,.18);
-  --acid:#d9ff43; --violet:#7c5cff; --cyan:#5eead4; --danger:#ff5c5c;
-  --ok:#5eead4; --warn:#ffb35c; --info:#b3a2ff; --bad:#ff5c5c;
-  --card-grad:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.008));
-  --hover:rgba(243,240,232,.05);
-  --rail-bg:rgba(7,8,10,.72);
-  --top-bg:rgba(7,8,10,.78);
-  --sheet-bg:linear-gradient(180deg,#0e1116,#0a0c10);
-  --toast-bg:#0f1217;
-  --backdrop:rgba(3,4,6,.66);
-  --track:rgba(243,240,232,.14);
-  --progress-bg:rgba(243,240,232,.08);
-  --shadow:0 40px 120px rgba(0,0,0,.6);
-  --glow:radial-gradient(circle,rgba(217,255,67,.08),rgba(124,92,255,.05) 40%,transparent 68%);
-  --glow-opacity:.55; --grain-opacity:.05; --grain-blend:overlay; --aurora-opacity:.38;
-  --accent-soft:rgba(217,255,67,.05);
-  --accent-line:rgba(217,255,67,.30);
-  --accent-line-strong:rgba(217,255,67,.45);
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{
-  background:var(--ink); color:var(--paper); font-family:var(--sans);
-  font-size:15px; line-height:1.55; overflow-x:hidden;
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-}
-::selection{background:var(--acid); color:var(--ink)}
-button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;background:none;border:none}
-a{color:inherit}
-img{max-width:100%}
-
-/* ---------- atmosphere ---------- */
-.aurora{position:fixed;inset:0;z-index:-3;pointer-events:none;overflow:hidden}
-.aurora i{position:absolute;display:block;border-radius:50%;filter:blur(90px);opacity:var(--aurora-opacity)}
-.aurora i:nth-child(1){width:52vw;height:52vw;left:-12vw;top:-18vw;background:radial-gradient(circle,#2a2f7a,transparent 65%)}
-.aurora i:nth-child(2){width:44vw;height:44vw;right:-10vw;top:6vh;background:radial-gradient(circle,#0f4d4a,transparent 68%);opacity:calc(var(--aurora-opacity) * .74)}
-.aurora i:nth-child(3){width:38vw;height:38vw;left:28vw;bottom:-18vw;background:radial-gradient(circle,#4a1f5e,transparent 66%);opacity:calc(var(--aurora-opacity) * .63)}
-.grain{
-  position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:var(--grain-opacity);mix-blend-mode:var(--grain-blend);
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/></svg>");
-}
-.cursor-glow{
-  position:fixed;left:0;top:0;width:520px;height:520px;z-index:-1;pointer-events:none;
-  transform:translate3d(-50%,-50%,0);opacity:var(--glow-opacity);
-  background:var(--glow);
-}
-.scroll-progress{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--acid),var(--cyan));z-index:60;transition:width .12s linear}
-
-/* ---------- shell ---------- */
-.shell{display:flex;min-height:100vh}
-.rail{
-  position:fixed;left:0;top:0;bottom:0;width:88px;z-index:40;
-  display:flex;flex-direction:column;align-items:center;gap:8px;
-  padding:22px 0;border-right:1px solid var(--line);
-  background:var(--rail-bg);backdrop-filter:blur(18px);
-}
-.brand{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:26px;user-select:none}
-.brand .mark{font-family:var(--display);font-size:30px;line-height:.9;letter-spacing:-.04em;display:inline-flex;align-items:baseline}
-.brand .mark em{font-style:italic;color:var(--acid)}
-
-.nav{display:flex;flex-direction:column;gap:6px;width:100%;align-items:center}
-.nav button{
-  position:relative;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
-  color:var(--muted);transition:color .2s,background .2s,transform .2s;
-}
-.nav button:hover{color:var(--paper);background:var(--hover);transform:translateY(-1px)}
-.nav button.is-active{color:var(--ink);background:var(--acid)}
-.nav button.is-active::after{
-  content:"";position:absolute;left:-21px;width:3px;height:18px;border-radius:3px;background:var(--acid);
-}
-.nav button span.tip{
-  position:absolute;left:58px;top:50%;transform:translateY(-50%) translateX(-4px);
-  padding:6px 10px;border-radius:8px;background:var(--ink-3);border:1px solid var(--line);
-  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-  white-space:nowrap;opacity:0;pointer-events:none;transition:.18s;color:var(--paper);
-}
-.nav button:hover span.tip{opacity:1;transform:translateY(-50%) translateX(0)}
-.theme-toggle{margin-top:auto;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);transition:.2s;background:var(--ink-2)}
-.theme-toggle:hover{color:var(--paper);border-color:var(--line-2);transform:translateY(-1px)}
-.rail-foot{margin-top:14px;font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--faint);writing-mode:vertical-rl}
-
-.main{margin-left:88px;width:calc(100% - 88px);max-width:1560px;padding:0 44px 90px}
-.topbar{
-  position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:18px;
-  height:84px;border-bottom:1px solid var(--line);
-  background:var(--top-bg);backdrop-filter:blur(18px);
-}
-.topbar .left{display:flex;align-items:center;gap:14px;min-width:0}
-.kb-select-wrap{position:relative}
-select.kb-select{
-  appearance:none;background:transparent;border:1px solid var(--line-2);border-radius:999px;
-  padding:10px 38px 10px 16px;font-size:13px;color:var(--paper);max-width:280px;
-}
-select.kb-select:focus{outline:none;border-color:var(--acid)}
-.kb-select-wrap::after{
-  content:"";position:absolute;right:14px;top:50%;width:8px;height:8px;pointer-events:none;
-  border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);
-  transform:translateY(-70%) rotate(45deg);
-}
-.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
-.btn{
-  display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-2);
-  border-radius:999px;padding:10px 18px;font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--paper);white-space:nowrap;
-  transition:background .22s,color .22s,border-color .22s,transform .18s;
-}
-.btn:hover{background:var(--paper);color:var(--ink);border-color:var(--paper);transform:translateY(-1px)}
-.btn:active{transform:translateY(0)}
-.btn.solid{background:var(--acid);border-color:var(--acid);color:var(--ink)}
-.btn.solid:hover{background:var(--paper);border-color:var(--paper)}
-.btn.danger:hover{background:var(--danger);border-color:var(--danger);color:var(--ink)}
-#confirmOk.danger{background:var(--danger);border-color:var(--danger);color:var(--ink)}
-.btn.ghost{border-color:transparent;color:var(--muted)}
-.btn.ghost:hover{color:var(--paper);background:var(--hover)}
-.btn[disabled]{opacity:.45;pointer-events:none}
-.icon-btn{
-  width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
-  border:1px solid transparent;color:var(--muted);transition:.18s;
-}
-.icon-btn:hover{color:var(--paper);background:var(--hover);border-color:var(--line)}
-.icon-btn.danger:hover{color:var(--danger)}
-.icon-btn.acid:hover{color:var(--acid)}
-
-/* ---------- views ---------- */
-.view{display:none;padding-top:34px}
-.view.is-active{display:block}
-.view.is-entering{animation:viewIn .5s cubic-bezier(.2,.7,.2,1) both}
-@keyframes viewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
-.hero{position:relative;padding:26px 0 42px}
-.hero h1{
-  font-family:var(--display);font-weight:400;font-size:clamp(56px,8.4vw,124px);
-  line-height:.88;letter-spacing:-.045em;margin:14px 0 18px;max-width:14ch;
-}
-.hero h1 em{font-style:italic;color:var(--acid)}
-.hero p{max-width:62ch;color:var(--muted);font-size:16px}
-.hero-kb{font-family:var(--sans);font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--paper)}
-.hero-meta{display:flex;gap:22px;margin-top:26px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
-.hero-meta b{color:var(--paper);font-weight:500}
-
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:34px}
-.stat{background:var(--card-grad);padding:26px 24px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;transition:background .3s}
-.stat:hover{background:var(--hover)}
-.stat .num{font-family:var(--display);font-size:clamp(42px,5vw,72px);line-height:.9;letter-spacing:-.03em}
-.stat .num small{font-size:18px;color:var(--muted);font-family:var(--mono);letter-spacing:0;margin-left:6px}
-.stat .label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-.stat .sub{font-size:12px;color:var(--faint);margin-top:8px}
-
-.grid-2{display:grid;grid-template-columns:1.45fr 1fr;gap:22px;align-items:start}
-.panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--card-grad);overflow:hidden}
-.panel-head{display:flex;align-items:center;gap:12px;padding:20px 24px;border-bottom:1px solid var(--line)}
-.panel-head h2{font-size:14px;font-weight:500;letter-spacing:.02em}
-.panel-head .count{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.12em}
-.panel-body{padding:8px 10px 10px}
-.panel-foot{padding:14px 24px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:flex-end}
-
-.empty{padding:44px 24px;text-align:center;color:var(--faint)}
-.empty .big{font-family:var(--display);font-size:34px;color:var(--muted);margin-bottom:6px}
-
-/* document rows */
-.doc-toolbar{display:flex;gap:10px;align-items:center;padding:18px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.search-mini{position:relative;flex:1;min-width:200px}
-.search-mini input{width:100%;background:transparent;border:1px solid var(--line-2);border-radius:12px;padding:10px 14px 10px 38px;font-size:13px}
-.search-mini input:focus{outline:none;border-color:var(--acid)}
-.search-mini svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--faint)}
-.dropzone{
-  margin:18px 24px 6px;border:1px dashed var(--line-2);border-radius:16px;padding:20px 22px;
-  display:flex;align-items:center;gap:14px;color:var(--muted);transition:.2s;cursor:pointer;
-}
-.dropzone:hover,.dropzone.is-drag{border-color:var(--acid);background:var(--accent-soft);color:var(--paper)}
-.dropzone .dz-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;border:1px solid var(--line);color:var(--acid)}
-.dropzone b{display:block;color:var(--paper);font-weight:500;font-size:13px}
-.dropzone span{font-size:12px}
-.dropzone input{display:none}
-.doc-row{
-  display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:14px;align-items:center;
-  padding:14px 14px;border-radius:14px;transition:background .18s;
-}
-.doc-row + .doc-row{border-top:1px solid rgba(243,240,232,.06)}
-.doc-row:hover{background:var(--hover)}
-.doc-row > .mono{white-space:nowrap}
-.doc-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.doc-meta{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin-top:3px}
-.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
-.badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
-.badge.acid{color:var(--acid);border-color:var(--accent-line)}
-.badge.violet{color:var(--info);border-color:rgba(124,92,255,.4)}
-.badge.cyan{color:var(--ok);border-color:rgba(94,234,212,.35)}
-.badge.warn{color:var(--warn);border-color:rgba(255,179,92,.35)}
-.badge.danger{color:var(--bad);border-color:rgba(255,92,92,.35)}
-.row-actions{display:flex;gap:2px;opacity:.35;transition:opacity .18s}
-.doc-row:hover .row-actions,.doc-row:focus-within .row-actions{opacity:1}
-.check{display:grid;place-items:center}
-.check input{appearance:none;width:15px;height:15px;border:1px solid var(--line-2);border-radius:4px;transition:.15s;cursor:pointer}
-.check input:checked{background:var(--acid);border-color:var(--acid)}
-.check input:checked::after{content:"";display:block;width:4px;height:8px;margin:1px auto 0;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(42deg)}
-.bulkbar{
-  display:none;align-items:center;gap:12px;padding:12px 20px;margin:8px 10px 2px;
-  border:1px solid var(--accent-line);border-radius:14px;background:var(--accent-soft);
-  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-}
-.bulkbar.is-on{display:flex}
-.bulkbar .spacer{flex:1}
-
-/* versions */
-.version-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:18px}
-.version-card{
-  border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px;
-  background:var(--card-grad);transition:.22s;position:relative;overflow:hidden;
-}
-.version-card:hover{border-color:var(--line-2);transform:translateY(-2px)}
-.version-card.is-active{border-color:var(--accent-line-strong)}
-.version-card.is-active::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--acid)}
-.version-card h3{font-family:var(--display);font-size:26px;font-weight:400;letter-spacing:-.02em;line-height:1.1}
-.v-meta{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em;display:flex;flex-direction:column;gap:4px}
-.v-actions{display:flex;gap:8px;margin-top:auto;flex-wrap:wrap}
-
-/* search */
-.search-stage{padding:40px 0 26px}
-.search-big{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--line-2);padding-bottom:16px}
-.search-big input{flex:1;background:transparent;border:none;font-family:var(--display);font-size:clamp(30px,4vw,54px);letter-spacing:-.03em;color:var(--paper)}
-.search-big input::placeholder{color:var(--faint)}
-.search-big input:focus{outline:none}
-.result{padding:18px 20px;border:1px solid var(--line);border-radius:16px;margin-bottom:12px;background:var(--card-grad)}
-.result-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-.result-head .name{font-weight:500}
-.result-head .score{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--acid)}
-.score-bar{height:2px;background:var(--progress-bg);border-radius:2px;margin-bottom:12px;overflow:hidden}
-.score-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acid),var(--cyan))}
-.result p{white-space:pre-wrap;color:var(--muted);font-size:13px;line-height:1.65;max-height:260px;overflow:auto}
-
-/* access / recall */
-.matrix{display:grid;grid-template-columns:180px 1fr;gap:12px 18px;align-items:center;padding:20px 24px}
-.matrix .op{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.matrix .hint{grid-column:2;font-size:11px;color:var(--faint);margin-top:-6px}
-.select{
-  appearance:none;width:100%;background:var(--ink-2);border:1px solid var(--line-2);border-radius:10px;
-  padding:9px 34px 9px 12px;font-size:12px;color:var(--paper);
-  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
-  background-position:calc(100% - 17px) 51%,calc(100% - 12px) 51%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;
-}
-.select:focus{outline:none;border-color:var(--acid)}
-.field{display:flex;flex-direction:column;gap:7px}
-.field label{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-.field input,.field textarea{
-  background:var(--ink-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--paper);
-}
-.field input:focus,.field textarea:focus{outline:none;border-color:var(--acid)}
-.field textarea{resize:vertical;min-height:78px;font-family:var(--mono);font-size:12px}
-.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px 24px}
-.form-grid .wide{grid-column:1/-1}
-.switch{position:relative;display:inline-flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
-.switch input{position:absolute;opacity:0;width:0;height:0}
-.switch .track{width:46px;height:26px;border-radius:999px;background:var(--track);border:1px solid var(--line-2);position:relative;transition:.22s}
-.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(40,20,80,.28);transition:.22s}
-html[data-theme="dark"] .switch .track::after{background:var(--paper);box-shadow:none}
-.switch input:checked + .track{background:var(--acid);border-color:var(--acid)}
-.switch input:checked + .track::after{transform:translateX(20px);background:var(--ink)}
-.switch .txt{font-size:12px;color:var(--muted)}
-.switch input:checked ~ .txt{color:var(--paper)}
-.settings-row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:16px 24px;border-top:1px solid var(--line)}
-.settings-row .info b{display:block;font-weight:500;font-size:13px}
-.settings-row .info span{font-size:11.5px;color:var(--faint)}
-.entry-list{padding:6px 10px 10px}
-.entry-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 200px;gap:12px;align-items:center;padding:12px 14px;border-radius:12px}
-.entry-row:hover{background:var(--hover)}
-.entry-row + .entry-row{border-top:1px solid var(--line)}
-.entry-row .name{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.entry-row .kw{display:flex;gap:8px}
-.entry-row .kw input{flex:1;background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:11px}
-
-/* tasks */
-.task{padding:16px 20px;border-bottom:1px solid var(--line)}
-.task-head{display:flex;align-items:center;gap:10px}
-.task-head .name{font-size:13px;font-weight:500}
-.task-head .st{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--line-2)}
-.task-head .st.running{color:var(--acid);border-color:rgba(217,255,67,.35)}
-.task-head .st.completed{color:var(--ok);border-color:rgba(94,234,212,.35)}
-.task-head .st.failed{color:var(--danger);border-color:rgba(255,92,92,.35)}
-.progress{height:3px;background:var(--progress-bg);border-radius:3px;margin-top:10px;overflow:hidden}
-.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--acid),var(--cyan));transition:width .4s ease}
-.task .msg{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px}
-
-/* modal */
-.modal{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;padding:24px;visibility:hidden;opacity:0;transition:opacity .22s,visibility .22s}
-.modal.is-open{visibility:visible;opacity:1}
-.modal .backdrop{position:absolute;inset:0;background:var(--backdrop);backdrop-filter:blur(12px)}
-.modal .sheet{
-  position:relative;width:min(760px,100%);max-height:86vh;overflow:auto;
-  background:var(--sheet-bg);border:1px solid var(--line-2);border-radius:26px;
-  padding:28px;transform:translateY(18px) scale(.985);transition:transform .28s cubic-bezier(.2,.7,.2,1);
-  box-shadow:var(--shadow);
-}
-.modal.is-open .sheet{transform:none}
-.modal.small .sheet{width:min(480px,100%)}
-.modal-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px}
-.modal-head h3{font-family:var(--display);font-size:34px;line-height:1;font-weight:400;letter-spacing:-.02em}
-.modal-head p{font-size:12px;color:var(--faint);margin-top:6px}
-.modal-head .icon-btn{margin-left:auto}
-.modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
-.modal .form-grid{padding:0}
-.modal .form-grid + .form-grid{margin-top:16px}
-.sheet .doc-text{width:100%;min-height:300px;background:var(--ink-2);border:1px solid var(--line-2);border-radius:12px;padding:14px;font-family:var(--mono);font-size:12.5px;line-height:1.7;resize:vertical}
-.check-list{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}
-.check-list label{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;cursor:pointer}
-.check-list label:hover{background:rgba(243,240,232,.05)}
-
-/* toast */
-.toasts{position:fixed;right:22px;bottom:22px;z-index:120;display:flex;flex-direction:column;gap:8px;max-width:min(420px,calc(100vw - 44px))}
-.toast{
-  display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;
-  background:var(--toast-bg);border:1px solid var(--line-2);box-shadow:var(--shadow);
-  font-size:12.5px;animation:toastIn .28s cubic-bezier(.2,.7,.2,1) both;
-}
-.toast.ok{border-color:rgba(217,255,67,.35)}
-.toast.err{border-color:rgba(255,92,92,.4)}
-.toast .bar{width:3px;border-radius:3px;background:var(--acid);align-self:stretch}
-.toast.err .bar{background:var(--danger)}
-@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-
-/* misc */
-.kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--line-2);border-radius:5px;padding:2px 6px;color:var(--muted)}
-.hidden{display:none !important}
-.mono{font-family:var(--mono);letter-spacing:.06em}
-.muted{color:var(--muted)}
-.faint{color:var(--faint)}
-.reveal{animation:rise .55s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 38ms)}
-.reveal.is-settled{animation:none;opacity:1;transform:none}
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-@media (max-width:1100px){.grid-2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:900px){
-  .rail{left:0;right:0;top:auto;bottom:0;width:100%;height:64px;flex-direction:row;justify-content:center;border-right:none;border-top:1px solid var(--line);padding:6px 10px}
-  .brand,.rail-foot{display:none}
-  .nav{flex-direction:row;justify-content:space-around;width:100%}
-  .nav button{width:42px;height:42px}.nav button.is-active::after{display:none}
-  .nav button span.tip{display:none}
-  .main{margin-left:0;width:100%;padding:0 18px 96px}
-  .topbar{height:auto;padding:12px 0;flex-wrap:wrap;gap:10px}
-  .topbar .left{width:100%;gap:10px}
-  .top-actions{width:100%;overflow-x:auto;padding-bottom:2px}
-  .top-actions .btn{padding:9px 12px}
-  .top-actions .btn > span:not([data-icon]){display:none}
-  .hero{padding-top:10px}
-  .hero h1{font-size:clamp(46px,13vw,72px)}
-  .matrix{grid-template-columns:1fr;gap:8px}
-  .matrix .hint{grid-column:1}
-  .entry-row{grid-template-columns:1fr 1fr;gap:8px}
-  .entry-row .kw{grid-column:1/-1}
-  .form-grid{grid-template-columns:1fr}
-  .doc-row{grid-template-columns:24px minmax(0,1fr) auto;flex-wrap:wrap}
-  .badges{display:none}
-  .row-actions{opacity:1}
-}
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.001ms !important;animation-delay:0ms !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
-}
-</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08060d">
+<title>KiraKB // 临极档案 · LINJI ARCHIVE</title>
+<link rel="stylesheet" href="cathode.css?v=70">
 </head>
-<body>
-<div class="aurora"><i></i><i></i><i></i></div>
-<div class="grain"></div>
-<div class="cursor-glow" id="cursorGlow"></div>
-<div class="scroll-progress" id="scrollProgress"></div>
+<body class="boot-hold" data-theme="violet" data-crt="high">
+<svg class="svg-defs" aria-hidden="true" focusable="false">
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5V5.5Z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Z"/><path d="m8.5 12 2.3 2.3 4.7-4.7"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 19 5M12 4v8"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l3.5-.8L20 6.7a1.4 1.4 0 0 0-2-2L5.2 17.5 4 20Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4h8v2"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+</svg>
 
-<div class="shell">
-  <aside class="rail">
-    <div class="brand">
-      <div class="mark">K<em>B</em></div>
-    </div>
-    <nav class="nav" id="railNav">
-      <button type="button" data-action="nav" data-view="overview" class="is-active" aria-label="总览">
-        <span data-icon="book-open" data-size="19"></span><span class="tip">总览</span>
-      </button>
-      <button type="button" data-action="nav" data-view="docs" aria-label="条目">
-        <span data-icon="file-text" data-size="19"></span><span class="tip">条目</span>
-      </button>
-      <button type="button" data-action="nav" data-view="versions" aria-label="版本">
-        <span data-icon="layers-3" data-size="19"></span><span class="tip">版本</span>
-      </button>
-      <button type="button" data-action="nav" data-view="search" aria-label="检索">
-        <span data-icon="search" data-size="19"></span><span class="tip">检索</span>
-      </button>
-      <button type="button" data-action="nav" data-view="access" aria-label="权限">
-        <span data-icon="shield-check" data-size="19"></span><span class="tip">权限</span>
-      </button>
-      <button type="button" data-action="nav" data-view="recall" aria-label="召回">
-        <span data-icon="radar" data-size="19"></span><span class="tip">召回</span>
-      </button>
-      <button type="button" data-action="nav" data-view="settings" aria-label="设置">
-        <span data-icon="settings-2" data-size="19"></span><span class="tip">设置</span>
-      </button>
-      <button type="button" data-action="nav" data-view="tasks" aria-label="任务">
-        <span data-icon="activity" data-size="19"></span><span class="tip">任务</span>
-      </button>
-    </nav>
-    <button type="button" class="theme-toggle" id="themeToggle" data-action="toggle-theme" aria-label="切换明暗主题" title="切换主题"></button>
-    <div class="rail-foot">KIRAKB / 1.3.4</div>
-  </aside>
-
-  <main class="main" id="main">
-    <div class="topbar">
-      <div class="left">
-        <div class="kb-select-wrap">
-          <select class="kb-select" id="kbSelect" aria-label="知识库"></select>
-        </div>
-        <span class="badge" id="activeBadge"><span class="dot"></span><span id="activeBadgeText">无激活版本</span></span>
-      </div>
-      <div class="top-actions">
-        <button type="button" class="btn ghost" data-action="open-tab" title="在新标签页打开">
-          <span data-icon="external-link" data-size="14"></span><span>新标签</span>
-        </button>
-        <button type="button" class="btn ghost" data-action="create-kb">
-          <span data-icon="plus" data-size="14"></span><span>新建</span>
-        </button>
-        <button type="button" class="btn" data-action="edit-kb">
-          <span data-icon="pencil-line" data-size="14"></span><span>编辑</span>
-        </button>
-        <button type="button" class="btn ghost danger" data-action="delete-kb" title="删除知识库">
-          <span data-icon="trash-2" data-size="14"></span>
-        </button>
-        <button type="button" class="btn" data-action="upload-trigger">
-          <span data-icon="upload-cloud" data-size="14"></span><span>上传</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- OVERVIEW -->
-    <section class="view is-active" id="view-overview">
-      <div class="hero">
-        <div class="eyebrow">Knowledge archive / <span id="heroIndex">01</span><span class="hero-kb" id="heroKbName"></span></div>
-        <h1 id="heroTitle">Kira<em>KB</em></h1>
-        <p id="heroDesc">知识在这里生长。翻得到，也回得去。</p>
-        <div class="hero-meta">
-          <span>条目 <b id="metaEntries">0</b></span>
-          <span>版本 <b id="metaVersions">0</b></span>
-          <span>激活模型 <b id="metaModel">—</b></span>
-          <span>召回 <b id="metaRecall">关</b></span>
-        </div>
-      </div>
-
-      <div class="stats">
-        <div class="stat reveal" style="--i:0"><div class="num" id="statEntries">0</div><div><div class="label">条目</div><div class="sub">这个档案里的所有内容</div></div></div>
-        <div class="stat reveal" style="--i:1"><div class="num" id="statVersions">0</div><div><div class="label">版本</div><div class="sub">彼此独立的嵌入索引</div></div></div>
-        <div class="stat reveal" style="--i:2"><div class="num" id="statChunks">—</div><div><div class="label">激活维度</div><div class="sub">当前版本的向量维度</div></div></div>
-        <div class="stat reveal" style="--i:3"><div class="num" id="statRecall">关</div><div><div class="label">被动召回</div><div class="sub">提到就自动浮上来</div></div></div>
-      </div>
-
-      <div class="grid-2">
-        <div class="panel reveal" style="--i:4">
-          <div class="panel-head">
-            <span data-icon="file-text" data-size="16"></span>
-            <h2>最近条目</h2>
-            <span class="count" id="recentCount"></span>
-          </div>
-          <div class="panel-body" id="recentList"></div>
-        </div>
-        <div class="panel reveal" style="--i:5">
-          <div class="panel-head">
-            <span data-icon="layers-3" data-size="16"></span>
-            <h2>版本</h2>
-            <span class="count" id="versionCount"></span>
-          </div>
-          <div class="panel-body" id="overviewVersions"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- DOCS -->
-    <section class="view" id="view-docs">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / entries</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Entries</h1>
-        <p>写下、翻看、锁住。每条条目都有自己的门牌。</p>
-      </div>
-      <div class="panel">
-        <div class="doc-toolbar">
-          <div class="search-mini">
-            <span data-icon="search" data-size="15"></span>
-            <input id="docFilter" type="text" placeholder="按名称筛选条目" autocomplete="off">
-          </div>
-          <select class="select" id="docFilterKind" style="width:150px" aria-label="筛选条目">
-            <option value="all">全部条目</option>
-            <option value="locked">仅人工</option>
-            <option value="frozen">已冻结</option>
-            <option value="recall">召回开启</option>
-          </select>
-          <button type="button" class="btn ghost" data-action="open-deleted">
-            <span data-icon="rotate-ccw" data-size="14"></span><span>已删除</span>
-          </button>
-          <span class="badge" id="docCountBadge">0 个条目</span>
-        </div>
-        <div class="dropzone" id="dropzone" data-action="upload-trigger" tabindex="0" role="button">
-          <div class="dz-icon"><span data-icon="upload-cloud" data-size="20"></span></div>
-          <div><b>把文件拖到这里，或点击上传</b><span>TXT / Markdown 直接读取；PDF 与 Office 由服务端解析。</span></div>
-          <input type="file" id="fileInput" multiple accept=".txt,.md,.markdown,.pdf,.docx,.xlsx,.pptx">
-        </div>
-        <div class="bulkbar" id="bulkBar">
-          <span id="bulkText">已选 0 条</span>
-          <div class="spacer"></div>
-          <button type="button" class="btn ghost" data-action="bulk-edit">编辑策略</button>
-          <button type="button" class="btn ghost" data-action="bulk-delete">删除策略</button>
-          <button type="button" class="btn ghost" data-action="bulk-clear">清除</button>
-        </div>
-        <div id="docList" class="panel-body"></div>
-      </div>
-    </section>
-
-    <!-- VERSIONS -->
-    <section class="view" id="view-versions">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / indexes</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Versions</h1>
-        <p>同一段档案，可以有很多种读法。</p>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <span data-icon="layers-3" data-size="16"></span>
-          <h2>嵌入索引</h2>
-          <span class="count" id="versionHeadCount"></span>
-          <div style="margin-left:auto">
-            <button type="button" class="btn solid" data-action="create-version">
-              <span data-icon="plus" data-size="14"></span><span>新建版本</span>
-            </button>
-          </div>
-        </div>
-        <div class="version-grid" id="versionGrid"></div>
-      </div>
-    </section>
-
-    <!-- SEARCH -->
-    <section class="view" id="view-search">
-      <div class="search-stage">
-        <div class="eyebrow">Archive / retrieval</div>
-        <div class="search-big">
-          <span data-icon="search" data-size="30"></span>
-          <input id="searchInput" type="text" placeholder="想查什么？" autocomplete="off">
-          <button type="button" class="btn solid" data-action="search">检索</button>
-        </div>
-        <div class="hero-meta" style="margin-top:14px">
-          <span>模式 <b id="searchMode">向量</b></span>
-          <span>范围 <b id="searchScope">当前知识库</b></span>
-          <span class="faint">回车检索</span>
-        </div>
-      </div>
-      <div id="searchResults"></div>
-    </section>
-
-    <!-- ACCESS -->
-    <section class="view" id="view-access">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / permissions</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Access</h1>
-        <p>谁能碰她的知识，你说了算。</p>
-      </div>
-
-      <div class="panel" style="margin-bottom:22px">
-        <div class="panel-head">
-          <span data-icon="shield-check" data-size="16"></span>
-          <h2>知识库策略</h2>
-          <span class="count">每个条目的默认值</span>
-        </div>
-        <div class="matrix">
-          <div class="op">新增</div>
-          <select class="select" id="policyAdd" data-kb-policy="add">
-            <option value="open">开放 — 任何人</option>
-            <option value="whitelist">名单 — 指定用户</option>
-            <option value="admin">仅人工 — WebUI</option>
-            <option value="off">冻结 — 不可修改</option>
-          </select>
-          <div class="hint">新建条目时。</div>
-          <div class="op">编辑</div>
-          <select class="select" id="policyEdit" data-kb-policy="edit">
-            <option value="open">开放 — 任何人</option>
-            <option value="whitelist">名单 — 指定用户</option>
-            <option value="admin">仅人工 — WebUI</option>
-            <option value="off">冻结 — 不可修改</option>
-          </select>
-          <div class="hint">修改已有条目，包括恢复被删除的条目。</div>
-          <div class="op">删除</div>
-          <select class="select" id="policyDelete" data-kb-policy="delete">
-            <option value="open">开放 — 任何人</option>
-            <option value="whitelist">名单 — 指定用户</option>
-            <option value="admin">仅人工 — WebUI</option>
-            <option value="off">冻结 — 不可修改</option>
-          </select>
-          <div class="hint">软删除（可恢复）与恢复操作。</div>
-        </div>
-        <div class="settings-row">
-          <div class="info">
-            <b>允许名单</b>
-            <span>每行一个用户 ID。留空时回退到全局名单；两者都空时，名单模式不限制任何人（兼容旧行为）。</span>
-          </div>
-          <div style="width:min(320px,100%)">
-            <div class="field"><textarea id="kbAllowUsers" rows="2" placeholder="123456789"></textarea></div>
-          </div>
-        </div>
-        <div class="panel-foot">
-          <button type="button" class="btn solid" data-action="save-kb-perms">
-            <span data-icon="save" data-size="14"></span><span>保存策略</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <span data-icon="users" data-size="16"></span>
-          <h2>条目覆盖</h2>
-          <span class="count" id="entryOverrideCount"></span>
-        </div>
-        <div class="panel-body" id="entryPolicyList"></div>
-      </div>
-    </section>
-
-    <!-- RECALL -->
-    <section class="view" id="view-recall">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / passive recall</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Recall</h1>
-        <p>话里提到，它就会回来。</p>
-      </div>
-
-      <div class="panel" style="margin-bottom:22px">
-        <div class="panel-head">
-          <span data-icon="radar" data-size="16"></span>
-          <h2>知识库召回</h2>
-          <span class="badge" id="globalRecallBadge">总开关 关</span>
-        </div>
-        <div class="settings-row">
-          <div class="info">
-            <b>对此知识库启用</b>
-            <span>需要插件级总开关打开。此开关关闭时，条目仍可单独强制开启。</span>
-          </div>
-          <label class="switch"><input type="checkbox" id="kbRecallEnabled"><span class="track"></span><span class="txt">启用</span></label>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>条数</label><input id="kbRecallTopK" type="number" min="1" max="10" placeholder="跟随全局"></div>
-          <div class="field"><label>最低相似度</label><input id="kbRecallMinScore" type="number" min="0" max="1" step="0.01" placeholder="跟随全局"></div>
-          <div class="field"><label>字符上限</label><input id="kbRecallMaxChars" type="number" min="100" max="8000" step="50" placeholder="跟随全局"></div>
-        </div>
-        <div class="panel-foot">
-          <button type="button" class="btn solid" data-action="save-kb-recall">
-            <span data-icon="save" data-size="14"></span><span>保存召回</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <span data-icon="target" data-size="16"></span>
-          <h2>条目召回</h2>
-          <span class="count">继承 / 强制开启 / 排除</span>
-        </div>
-        <div class="panel-body" id="entryRecallList"></div>
-      </div>
-    </section>
-
-    <!-- SETTINGS -->
-    <section class="view" id="view-settings">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / runtime settings</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Settings</h1>
-        <p>调她的记忆方式，改完立即生效。</p>
-      </div>
-
-      <div class="panel" style="margin-bottom:22px">
-        <div class="panel-head">
-          <span data-icon="search" data-size="16"></span>
-          <h2>检索与条目</h2>
-          <span class="count">即时生效</span>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>默认条数</label><input id="setTopK" type="number" min="1" max="20"></div>
-          <div class="field"><label>分块大小</label><input id="setChunkSize" type="number" min="100" max="8000" title="对之后创建的版本与重建生效"></div>
-          <div class="field"><label>分块重叠</label><input id="setChunkOverlap" type="number" min="0" max="7999" title="对之后创建的版本与重建生效"></div>
-          <div class="field"><label>条目标题最大长度</label><input id="setTitleMax" type="number" min="4" max="60"></div>
-          <div class="field"><label>历史保留（过程版本）</label><input id="setHistoryKeep" type="number" min="1" max="200"></div>
-          <div class="field"><label>混合检索</label>
-            <label class="switch"><input type="checkbox" id="setHybrid"><span class="track"></span><span class="txt">BM25 + 向量</span></label>
-          </div>
-          <div class="field"><label>只读条目工具</label>
-            <label class="switch"><input type="checkbox" id="setExtraTools"><span class="track"></span><span class="txt">列表 / 读取</span></label>
-          </div>
-          <div class="field"><label>自动同步其它版本</label>
-            <label class="switch"><input type="checkbox" id="setAutoSync"><span class="track"></span><span class="txt">编辑后</span></label>
-          </div>
-          <div class="field"><label>停用词</label>
-            <label class="switch"><input type="checkbox" id="setStopwords"><span class="track"></span><span class="txt">BM25 过滤</span></label>
-          </div>
-          <div class="field"><label>重排序</label>
-            <label class="switch"><input type="checkbox" id="setRerank"><span class="track"></span><span class="txt">默认模型</span></label>
-          </div>
-          <div class="field"><label>词法召回</label>
-            <label class="switch"><input type="checkbox" id="setLexical"><span class="track"></span><span class="txt">标题 + 内容</span></label>
-          </div>
-          <div class="field"><label>忽略时间因素</label>
-            <label class="switch"><input type="checkbox" id="setIgnoreTime"><span class="track"></span><span class="txt">推荐开启</span></label>
-          </div>
-          <div class="field"><label>自动安装依赖</label>
-            <label class="switch"><input type="checkbox" id="setAutoInstallDeps"><span class="track"></span><span class="txt">可选依赖</span></label>
-          </div>
-          <div class="field"><label>内容命中门槛</label><input id="setLexicalMin" type="number" min="0" max="20"></div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:22px">
-        <div class="panel-head">
-          <span data-icon="radar" data-size="16"></span>
-          <h2>被动召回</h2>
-          <span class="count">总开关与参数</span>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>总开关</label>
-            <label class="switch"><input type="checkbox" id="setRecallEnabled"><span class="track"></span><span class="txt">启用</span></label>
-          </div>
-          <div class="field"><label>模式</label>
-            <select class="select" id="setRecallMode">
-              <option value="hybrid">混合</option>
-              <option value="mention">词面</option>
-              <option value="semantic">语义</option>
-            </select>
-          </div>
-          <div class="field"><label>条数</label><input id="setRecallTopK" type="number" min="1" max="10"></div>
-          <div class="field"><label>最低相似度（余弦）</label><input id="setRecallMin" type="number" min="0" max="1" step="0.01"></div>
-          <div class="field"><label>强门槛（无词面命中）</label><input id="setRecallStrong" type="number" min="0" max="1" step="0.01"></div>
-          <div class="field"><label>字符上限</label><input id="setRecallChars" type="number" min="100" max="8000"></div>
-          <div class="field"><label>超时（毫秒）</label><input id="setRecallTimeout" type="number" min="200" max="10000"></div>
-          <div class="field"><label>去重回合</label><input id="setRecallDedupe" type="number" min="0" max="20"></div>
-          <div class="field"><label>单轮最多知识库</label><input id="setRecallMaxKbs" type="number" min="1" max="20"></div>
-          <div class="field"><label>最小消息长度</label><input id="setRecallMinQuery" type="number" min="1" max="32"></div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:22px">
-        <div class="panel-head">
-          <span data-icon="shield-check" data-size="16"></span>
-          <h2>默认权限</h2>
-          <span class="count">未单独配置的知识库使用</span>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label>新增</label><select class="select" id="setAddPolicy"></select></div>
-          <div class="field"><label>编辑</label><select class="select" id="setEditPolicy"></select></div>
-          <div class="field"><label>删除</label><select class="select" id="setDeletePolicy"></select></div>
-          <div class="field wide"><label>全局允许名单（每行一个用户 ID）</label><textarea id="setOwnerWhitelist" rows="3"></textarea></div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <span data-icon="hard-drive" data-size="16"></span>
-          <h2>存储与独立 WebUI</h2>
-          <span class="count">热切换</span>
-        </div>
-        <div class="form-grid">
-          <div class="field wide"><label>知识库目录</label><input id="setKbDir" type="text" placeholder="留空 = data/knowledge_base"><span class="faint" style="font-size:11px">切换后立即生效；旧目录不会自动迁移。</span></div>
-          <div class="field"><label>启用独立 WebUI</label>
-            <label class="switch"><input type="checkbox" id="setEnableWebui"><span class="track"></span><span class="txt">热启动</span></label>
-          </div>
-          <div class="field"><label>绑定地址</label><input id="setWebHost" type="text" placeholder="127.0.0.1"></div>
-          <div class="field"><label>端口</label><input id="setWebPort" type="number" min="0" max="65535"></div>
-          <div class="field wide"><label>访问令牌（留空无认证）</label><input id="setWebToken" type="text"></div>
-        </div>
-        <div class="panel-foot">
-          <button type="button" class="btn solid" data-action="save-settings">
-            <span data-icon="save" data-size="14"></span><span>应用设置</span>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- TASKS -->
-    <section class="view" id="view-tasks">
-      <div class="hero" style="padding-bottom:26px">
-        <div class="eyebrow">Archive / jobs</div>
-        <h1 style="font-size:clamp(42px,6vw,84px)">Tasks</h1>
-        <p>她在后台整理知识，进度会在这里。</p>
-      </div>
-      <div class="panel"><div id="taskList"></div></div>
-    </section>
-  </main>
+<div id="boot" class="boot" aria-hidden="true">
+  <div class="boot-static"></div>
+  <div class="boot-frame">
+    <div class="boot-kicker" id="bootKicker">PROJECT // 临极档案 · LINJI ARCHIVE</div>
+    <img class="boot-badge" id="bootBadge" alt="">
+    <div class="boot-org" id="bootOrg">CHAPTER 01 // 紫垣档案局</div>
+    <div class="boot-logo" id="bootLogo">KIRA<span>KB</span></div>
+    <div class="boot-sub" id="bootSub">LINJI ARCHIVE · KNOWLEDGE RETRIEVAL · MODEL 07</div>
+    <div class="boot-bar"><i></i></div>
+    <div class="boot-status"><span id="bootStatus">ACQUIRING SIGNAL</span><b id="bootPct">00</b></div>
+  </div>
+  <button id="bootSkip" class="boot-skip" type="button">跳过 / SKIP</button>
 </div>
 
-<!-- ============ modals ============ -->
-<div class="modal small" id="modalConfirm" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalConfirm"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head"><div><h3 id="confirmTitle">确认</h3><p id="confirmText"></p></div></div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalConfirm">取消</button>
-      <button type="button" class="btn solid" id="confirmOk">确认</button>
+<div class="ambient" aria-hidden="true"><div class="ambient-glow"></div><div class="ambient-grid"></div></div>
+<div class="page">
+  <div class="cabinet">
+    <div class="cabinet-head">
+      <div class="brand-lockup"><span class="brand-mark">KB</span><span class="brand-name">KIRAKB <i>/</i> LINJI</span></div>
+      <div class="cabinet-serial">SN 07–551 · 1024D · SIGNAL LOCKED</div>
+      <div class="cabinet-leds" aria-hidden="true"><i></i><i></i><i></i><span>PWR</span></div>
     </div>
+    <div class="cabinet-shell">
+      <aside class="rail">
+        <div class="rail-top">
+          <div class="rail-eyebrow">INDEX / 档案终端</div>
+          <div class="rail-title-row" id="railBrandRow"><img class="rail-badge" id="railBadge" alt=""><span class="rail-kb" id="railKb" data-fx="decode">KB</span><span class="rail-kb-lamp" aria-hidden="true"></span><span class="rail-title" id="railTitle" data-fx="glitch">知识库</span></div>
+          <div class="rail-alias" id="railAlias" data-fx="scan">临极档案 <i>/ LINJI ARCHIVE</i></div>
+          <div class="rail-sub">KNOWLEDGE BASE // <span id="railKbCount">0</span> ARCHIVES</div>
+        </div>
+        <nav class="channel-nav" aria-label="主导航">
+          <button class="channel is-active" type="button" data-view="catalog"><span class="ch-no">01</span><svg><use href="#i-book"></use></svg><span class="ch-label"><b>目录</b><small>CATALOGUE</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="versions"><span class="ch-no">02</span><svg><use href="#i-layers"></use></svg><span class="ch-label"><b>版本</b><small>VERSIONS</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="search"><span class="ch-no">03</span><svg><use href="#i-search"></use></svg><span class="ch-label"><b>检索</b><small>SEARCH</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="access"><span class="ch-no">04</span><svg><use href="#i-shield"></use></svg><span class="ch-label"><b>权限</b><small>ACCESS</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="recall"><span class="ch-no">05</span><svg><use href="#i-radar"></use></svg><span class="ch-label"><b>召回</b><small>RECALL</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="settings"><span class="ch-no">06</span><svg><use href="#i-sliders"></use></svg><span class="ch-label"><b>机台设置</b><small>SETTINGS</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="tasks"><span class="ch-no">07</span><svg><use href="#i-activity"></use></svg><span class="ch-label"><b>任务</b><small>TASKS</small></span><span class="ch-pip"></span></button>
+          <button class="channel" type="button" data-view="wiki"><span class="ch-no">08</span><svg><use href="#i-book"></use></svg><span class="ch-label"><b>临极档案</b><small>WIKI</small></span><span class="ch-pip"></span></button>
+        </nav>
+        <div class="rail-archive">
+          <div class="mini-label">ACTIVE ARCHIVE</div>
+          <select class="kb-select" id="kbSelect" aria-label="选择知识库"></select>
+          <div class="rail-actions">
+            <button type="button" id="newKbBtn" title="新建知识库"><svg><use href="#i-plus"></use></svg></button>
+            <button type="button" id="editKbBtn" title="编辑当前知识库"><svg><use href="#i-pencil"></use></svg></button>
+            <button type="button" id="uploadBtn" title="上传条目"><svg><use href="#i-upload"></use></svg></button>
+            <button type="button" id="deleteKbBtn" class="danger" title="删除当前知识库"><svg><use href="#i-trash"></use></svg></button>
+          </div>
+          <input id="fileInput" type="file" multiple accept=".txt,.md,.markdown,.pdf,.docx,.xlsx,.pptx" hidden>
+          <div class="signal-meter"><i></i><i></i><i></i><i></i><i></i><span>STABLE</span></div>
+        </div>
+        <div class="rail-foot">
+          <span>KIRAKB / <b id="pluginVersion">1.5.0</b></span>
+          <button id="quickCrt" type="button" aria-pressed="true"><svg><use href="#i-power"></use></svg><span>CRT</span></button>
+        </div>
+      </aside>
+
+      <main class="screen" id="screen">
+        <div class="screen-glass" aria-hidden="true"></div>
+        <div class="screen-content">
+        <div class="wall-fx" id="wallFx" aria-hidden="true" style="display:none"></div>
+          <header class="hud">
+            <div class="hud-left">
+              <span class="hud-kicker" id="hudKicker">CH 01 // CATALOGUE</span>
+              <span class="hud-dot"></span>
+              <span class="hud-meta" id="activeBadgeText">NO ACTIVE VERSION</span>
+            </div>
+            <div class="hud-right">
+              <div class="theme-strip" id="themeStrip" role="group" aria-label="配色主题"></div>
+              <button class="hud-btn" id="appreciateBtn" type="button" title="欣赏模式（F）"><svg><use href="#i-eye"></use></svg>欣赏</button>
+              <button class="hud-btn" id="quoteToggleBtn" type="button" aria-pressed="true">字幕 <i>ON</i></button>
+              <button class="hud-btn" id="settingsBtn" type="button"><svg><use href="#i-sliders"></use></svg>设置</button>
+            </div>
+          </header>
+
+          <div class="view-stack" id="viewStack">
+            <!-- CATALOGUE -->
+            <section class="view is-active" data-view="catalog">
+              <div class="view-art" data-art="catalog"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">01</span><span class="chapter-rule"></span><span class="chapter-label">CATALOGUE / 目录</span><span class="chapter-stamp">ARCHIVE OPEN</span></div>
+                <div class="hero-grid">
+                  <div class="hero-copy">
+                    <div class="eyebrow">KNOWLEDGE IS A CONTAINMENT UNIT</div>
+                    <h1 data-fx="decode">记忆不是档案<br><em>但档案会记得</em></h1>
+                    <p class="hero-lede">从已建立的知识库中抽取、编排、复述。这里的每一行字幕都来自真实条目，而不是装饰性的空话。</p>
+                    <div class="hero-actions">
+                      <button class="btn primary" type="button" id="heroUploadBtn"><svg><use href="#i-upload"></use></svg>导入条目</button>
+                      <button class="btn ghost" type="button" id="drawQuoteBtn"><svg><use href="#i-refresh"></use></svg>抽取一句</button>
+                    </div>
+                  </div>
+                  <div class="hero-quote" id="quoteCard">
+                    <div class="quote-index" id="heroQuoteIndex">RECORD 000 // ARCHIVE</div>
+                    <div class="quote-text" id="heroQuote">正在从档案中抽取……</div>
+                    <div class="quote-source" id="heroSource">SOURCE // PENDING</div>
+                    <div class="quote-bars" id="quoteBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                  </div>
+                </div>
+                <div class="stat-row">
+                  <div class="stat-card"><span class="stat-label">ENTRIES / 条目</span><b id="statEntries">000</b><small>已归档</small></div>
+                  <div class="stat-card"><span class="stat-label">VERSIONS / 版本</span><b id="statVersions">00</b><small>独立索引</small></div>
+                  <div class="stat-card"><span class="stat-label">DIMENSION / 维度</span><b id="statDimension">—</b><small>激活版本</small></div>
+                  <div class="stat-card accent"><span class="stat-label">RECALL / 召回</span><b id="statRecall">—</b><small>被动监听</small></div>
+                </div>
+                <div class="catalog-layout">
+                  <div class="panel entry-panel">
+                    <div class="panel-head"><div><span class="mini-label">INDEX / 条目索引</span><h2>所有记录</h2></div><div class="panel-tools"><label class="search-box"><svg><use href="#i-search"></use></svg><input id="docFilter" type="search" placeholder="检索标题、正文、标签…" autocomplete="off"></label><button class="icon-btn" id="deletedBtn" type="button" title="已删除条目"><svg><use href="#i-rotate"></use></svg></button></div></div>
+                    <div class="entry-toolbar"><select class="tiny-select" id="docFilterKind"><option value="all">全部条目</option><option value="ai">仅人工</option><option value="frozen">冻结</option><option value="recall">召回开启</option></select><button class="btn small ghost" id="docUploadBtn" type="button"><svg><use href="#i-upload"></use></svg>上传</button><button class="btn small ghost" id="bulkEditBtn" type="button">批量权限</button><span class="entry-count" id="docCount">0 RECORDS</span></div>
+                    <div class="table-head"><span><input id="selectAllDocs" type="checkbox" aria-label="全选条目"> NO.</span><span>记录</span><span>来源</span><span>状态</span><span>更新</span></div>
+                    <div class="entry-list" id="docList"></div>
+                    <div class="panel-foot"><span id="docFoot">0 RECORDS</span><span>PERMISSION: KB DEFAULT</span></div>
+                  </div>
+                  <aside class="panel inspector" id="inspector">
+                    <div class="panel-head"><div><span class="mini-label">INSPECTOR / 检视</span><h2>记录详情</h2></div><span class="badge" id="inspectBadge">NO SELECTION</span></div>
+                    <div class="inspect-empty" id="inspectEmpty">选择左侧任意条目，检视其正文、标签与版本状态。</div>
+                    <div class="inspect-body" id="inspectBody" hidden>
+                      <div class="inspect-kicker" id="inspectKicker">RECORD 000</div>
+                      <h3 id="inspectTitle"></h3>
+                      <div class="tag-row" id="inspectTags"></div>
+                      <p class="inspect-content" id="inspectContent"></p>
+                      <div class="inspect-grid"><div><span>SOURCE</span><b id="inspectKb"></b></div><div><span>UPDATED</span><b id="inspectUpdated"></b></div><div><span>HASH</span><b class="mono" id="inspectHash"></b></div><div><span>STATUS</span><b class="ok" id="inspectStatus"></b></div></div>
+                      <div class="inspect-actions"><button class="btn small ghost" id="editDocBtn" type="button">编辑正文</button><button class="btn small ghost" id="historyBtn" type="button">修订历史</button><button class="btn small ghost" id="entrySettingsBtn" type="button">条目设置</button><button class="btn small danger" id="deleteDocBtn" type="button">删除</button></div>
+                    </div>
+                  </aside>
+                </div>
+              </div>
+            </section>
+
+            <!-- VERSIONS -->
+            <section class="view" data-view="versions">
+              <div class="view-art" data-art="versions"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">02</span><span class="chapter-rule"></span><span class="chapter-label">VERSIONS / 版本</span><span class="chapter-stamp">3 INDEXES</span></div>
+                <div class="page-title"><div><div class="eyebrow">MULTI-MODEL CONTAINMENT</div><h1 data-fx="scan">同一段记忆，<em>不同的折射率</em></h1><p>版本不是活索引。新增只写激活版本，编辑默认也只更新激活版本。</p></div><button class="btn primary" id="newVersionBtn" type="button"><svg><use href="#i-plus"></use></svg>新建版本</button></div>
+                <div class="version-grid" id="versionGrid"></div>
+                <div class="panel version-note"><div><span class="mini-label">FRESHNESS RULE / 新鲜度规则</span><h2>版本不是活索引</h2><p>新增条目只写入激活版本；编辑默认只更新激活版本。其它版本按条目哈希与时间戳判断是否需要同步。删除和恢复会作用于所有可用版本。</p></div><div class="rule-diagram" aria-hidden="true"><span>EDIT</span><i></i><span>ACTIVE</span><i></i><span>SYNC</span></div></div>
+              </div>
+            </section>
+
+            <!-- SEARCH -->
+            <section class="view" data-view="search">
+              <div class="view-art" data-art="search"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">03</span><span class="chapter-rule"></span><span class="chapter-label">SEARCH / 检索</span><span class="chapter-stamp">SIGNAL QUERY</span></div>
+                <div class="page-title"><div><div class="eyebrow">THE ARCHIVE ANSWERS</div><h1 data-fx="decode">不要等它发问，<em>先检索</em></h1><p>从词法到语义，找到那条被遗忘的记录。</p></div></div>
+                <div class="panel search-panel"><div class="search-big"><svg><use href="#i-search"></use></svg><input id="searchInput" type="text" placeholder="想查什么？" autocomplete="off"><button class="btn primary" id="searchBtn" type="button">检索</button></div><div class="search-meta"><span>MODE <b id="searchMode">向量</b></span><span>RANGE <b>当前知识库</b></span><span>ENTER 检索</span></div><div id="searchResults" class="search-results"><div class="inspect-empty">输入关键词，按下回车。</div></div></div>
+              </div>
+            </section>
+
+            <!-- ACCESS -->
+            <section class="view" data-view="access">
+              <div class="view-art" data-art="access"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">04</span><span class="chapter-rule"></span><span class="chapter-label">ACCESS / 权限</span><span class="chapter-stamp">OPEN CHANNEL</span></div>
+                <div class="page-title"><div><div class="eyebrow">WHO MAY WRITE TO THE ARCHIVE</div><h1 data-fx="glitch">不是所有人，<em>都能修改过去</em></h1><p>知识库默认值与条目例外分开管理。</p></div><button class="btn primary" id="savePermBtn" type="button"><svg><use href="#i-check"></use></svg>保存策略</button></div>
+                <div class="permission-grid">
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">KB POLICY / 知识库策略</span><h2>默认写入权限</h2></div><span class="badge">ADMIN ONLY</span></div><div class="policy-table"><div class="policy-row"><span>新增条目</span><select class="policy-select" id="policyAdd"><option value="open">开放</option><option value="whitelist">名单</option><option value="admin">仅人工</option><option value="off">冻结</option></select><span class="badge">ALLOW</span></div><div class="policy-row"><span>编辑条目</span><select class="policy-select" id="policyEdit"><option value="open">开放</option><option value="whitelist">名单</option><option value="admin">仅人工</option><option value="off">冻结</option></select><span class="badge">ALLOW</span></div><div class="policy-row"><span>删除条目</span><select class="policy-select" id="policyDelete"><option value="open">开放</option><option value="whitelist">名单</option><option value="admin">仅人工</option><option value="off">冻结</option></select><span class="badge">ALLOW</span></div></div><div class="field-label">允许名单 <small>每行一个用户 ID；留空表示不限制</small></div><textarea id="kbAllowUsers" rows="3" placeholder="42&#10;7"></textarea></div>
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">ENTRY OVERRIDE / 条目覆盖</span><h2>例外与例外之外</h2></div><span class="badge" id="overrideCount">0 OVERRIDES</span></div><div class="entry-policy-list" id="entryPolicyList"></div><div class="notice"><span>!</span><p>条目级策略优先于知识库默认值。`off` 同时阻止 WebUI 与 AI 写入。</p></div></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- RECALL -->
+            <section class="view" data-view="recall">
+              <div class="view-art" data-art="recall"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">05</span><span class="chapter-rule"></span><span class="chapter-label">RECALL / 召回</span><span class="chapter-stamp">PASSIVE LISTENING</span></div>
+                <div class="page-title"><div><div class="eyebrow">THE ARCHIVE SPEAKS FIRST</div><h1 data-fx="type">不要等它发问，<em>先让记忆开口</em></h1><p>进入请求上下文，但不写入历史。</p></div><div class="toggle-big" id="globalRecallBadge"><span></span><b>全局召回</b><small>OFF</small></div></div>
+                <div class="recall-grid">
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">KB RECALL / 知识库召回</span><h2>对此知识库启用</h2></div><span class="badge">KB LEVEL</span></div><div class="control-row"><label for="kbRecallEnabled">启用召回</label><label class="switch"><input id="kbRecallEnabled" type="checkbox"><span></span></label></div><div class="control-row"><label for="kbRecallTopK">条数 <small>留空跟随全局</small></label><input id="kbRecallTopK" type="number" min="1" max="10" placeholder="全局"></div><div class="control-row"><label for="kbRecallMinScore">最低相似度</label><input id="kbRecallMinScore" type="number" min="0" max="1" step="0.01" placeholder="全局"></div><div class="control-row"><label for="kbRecallMaxChars">字符上限</label><input id="kbRecallMaxChars" type="number" min="100" max="8000" placeholder="全局"></div><div class="panel-foot"><button class="btn primary" id="saveKbRecallBtn" type="button">保存召回</button></div></div>
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">GLOBAL / 全局</span><h2>只读快照</h2></div><span class="badge">READ ONLY</span></div><div class="radar-log" id="globalRecallInfo"><p><b>MODE</b> —</p><p><b>TOP K</b> —</p><p><b>MIN SCORE</b> —</p><p><b>MAX CHARS</b> —</p></div><div class="notice"><span>i</span><p>全局参数在机台设置中修改；这里只显示当前生效值。</p></div></div>
+                  <div class="panel recall-entries"><div class="panel-head"><div><span class="mini-label">ENTRY RECALL / 条目</span><h2>继承 / 强制 / 排除</h2></div><span class="badge">PER ENTRY</span></div><div class="entry-recall-list" id="entryRecallList"></div></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- SETTINGS -->
+            <section class="view" data-view="settings">
+              <div class="view-art" data-art="settings"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">06</span><span class="chapter-rule"></span><span class="chapter-label">MACHINE SETTINGS / 机台设置</span><span class="chapter-stamp">USER SKIN</span></div>
+                <div class="page-title"><div><div class="eyebrow">A MACHINE YOU CAN CALL YOURS</div><h1 data-fx="pulse">调到你喜欢的<em>那一道噪点</em></h1><p>主题、显像管、字幕与所有检索参数；大部分即时生效。</p></div><div style="display:flex;gap:6px;align-items:center"><button class="btn ghost" id="replayBootBtn" type="button">重播开屏</button><button class="btn primary" id="saveSettingsBtn" type="button"><svg><use href="#i-check"></use></svg>应用设置</button></div></div>
+                <div class="settings-grid">
+                  <div class="panel span-2"><div class="panel-head"><div><span class="mini-label">MACHINE SKIN / 机台皮肤</span><h2>显像管与字幕</h2></div><span class="badge">LIVE</span></div><div class="skin-grid">
+                    <div class="field span-2"><label>组织徽章 / 快速切换</label><div class="theme-badge-row" id="themeBadgeRow"></div></div>
+                    <div class="field"><label for="setUiTheme">配色主题</label><select id="setUiTheme"><option value="violet">紫色 · VIOLET</option><option value="pink">粉色 · PINK</option><option value="blue">蓝色 · BLUE</option><option value="amber">黄色 · AMBER</option><option value="sg">命运石之门 · AMBER/TEAL</option><option value="green">绿色 · GREEN</option><option value="red">红色 · RED</option><option value="gray">灰色 · GRAY</option></select></div>
+                    <div class="field"><label for="setUiCrt">CRT 强度</label><select id="setUiCrt"><option value="high">高</option><option value="medium">中</option><option value="low">低</option><option value="off">关闭</option></select></div>
+                    <div class="field"><label for="setUiTextFx">文字特效</label><select id="setUiTextFx"><option value="mix">混合</option><option value="radio">电波干扰</option><option value="pulse">脉冲</option><option value="type">打字机</option><option value="decode">解码</option><option value="scan">扫描</option><option value="glitch">故障</option></select></div>
+                    <div class="field switch-field"><label>性能模式</label><label class="switch"><input id="setUiPerf" type="checkbox"><span></span><b>减少噪点/转场</b></label></div>
+                    <div class="field switch-field"><label>开屏特效</label><label class="switch"><input id="setUiSplash" type="checkbox"><span></span><b>信号锁定</b></label></div>
+                    <div class="field switch-field"><label>随机复播</label><label class="switch"><input id="setUiFxLoop" type="checkbox"><span></span><b>标题 / 文字</b></label></div>
+                    <div class="field"><label for="setUiFxInterval">复播间隔（秒）</label><input id="setUiFxInterval" type="number" min="4" max="15"></div>
+                    <div class="field switch-field"><label>随机字幕</label><label class="switch"><input id="setUiQuoteEnabled" type="checkbox"><span></span><b>知识库原文</b></label></div>
+                    <div class="field"><label for="setUiQuoteInterval">字幕间隔（秒）</label><input id="setUiQuoteInterval" type="number" min="4" max="30"></div>
+                    <div class="field span-2"><label>字幕来源知识库</label><div class="kb-checks" id="setUiQuoteKbs"></div></div>
+                    <div class="field span-2"><label for="setUiQuoteLines">自定义台词池 <small>每行一条；留空使用真实条目正文</small></label><textarea id="setUiQuoteLines" rows="3" placeholder="留空则从真实条目正文抽取"></textarea></div>
+                    <div class="field span-2"><label for="setUiQuoteMottos">自定义格言 <small>每行一条；留空使用内置池</small></label><textarea id="setUiQuoteMottos" rows="2"></textarea></div>
+                  </div><div class="panel-head sub-head"><div><span class="mini-label">BACKDROPS / 背景立绘</span><h2>本地保存 · 自动压缩</h2></div><span class="badge">9 SLOTS</span></div><div class="bg-grid" id="cathodeBgGrid"></div></div>
+
+                  <div class="panel span-2 wall-vault-panel"><div class="panel-head wall-vault-head"><div><span class="mini-label">WALLPAPER VAULT / 壁纸轮换</span><h2>挑你想看的那些</h2></div><span class="badge" id="wallVaultCount">0 / 0</span></div><div class="wall-vault-tabs" id="wallVaultTabs"></div><div class="wall-vault" id="wallVault"></div><div class="wall-vault-foot"><span class="hint" id="wallVaultHint">默认全部启用；点缩略图切换。</span><button class="btn small ghost" id="wallAllBtn" type="button">全部启用</button><button class="btn small ghost" id="wallNoneBtn" type="button">全部关闭</button><label class="switch" title="鼠标移动时壁纸轻微跟随"><input id="setUiParallax" type="checkbox"><span></span><b>视点视差</b></label><label class="switch" title="壁纸自动轮换"><input id="setUiWallRotate" type="checkbox"><span></span><b>自动轮换</b></label><span class="field-inline"><input id="setUiWallInterval" type="number" min="5" max="120"><small>秒</small></span></div></div>
+
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">SEARCH / 检索</span><h2>索引参数</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field"><label for="setTopK">默认检索条数</label><input id="setTopK" type="number" min="1" max="20"></div><div class="field"><label for="setChunkSize">分块大小</label><input id="setChunkSize" type="number" min="100" max="8000"></div><div class="field"><label for="setChunkOverlap">分块重叠</label><input id="setChunkOverlap" type="number" min="0" max="7999"></div><div class="field"><label for="setLexicalMin">内容命中门槛</label><input id="setLexicalMin" type="number" min="0" max="20"></div><div class="field switch-field"><label>混合检索</label><label class="switch"><input id="setHybrid" type="checkbox"><span></span><b>BM25 + 向量</b></label></div><div class="field switch-field"><label>停用词过滤</label><label class="switch"><input id="setStopwords" type="checkbox"><span></span><b>BM25</b></label></div><div class="field switch-field"><label>重排序</label><label class="switch"><input id="setRerank" type="checkbox"><span></span><b>默认模型</b></label></div><div class="field switch-field"><label>词法召回</label><label class="switch"><input id="setLexical" type="checkbox"><span></span><b>标题 + 内容</b></label></div><div class="field switch-field"><label>忽略时间因素</label><label class="switch"><input id="setIgnoreTime" type="checkbox"><span></span><b>推荐开启</b></label></div><div class="field switch-field"><label>自动安装依赖</label><label class="switch"><input id="setAutoInstallDeps" type="checkbox"><span></span><b>运行时</b></label></div></div></div>
+
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">ENTRIES / 条目</span><h2>写入与历史</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field"><label for="setTitleMax">标题最大长度</label><input id="setTitleMax" type="number" min="4" max="60"></div><div class="field"><label for="setHistoryKeep">历史保留数</label><input id="setHistoryKeep" type="number" min="1" max="200"></div><div class="field switch-field"><label>只读条目工具</label><label class="switch"><input id="setExtraTools" type="checkbox"><span></span><b>列表 / 读取</b></label></div><div class="field switch-field"><label>编辑后自动同步</label><label class="switch"><input id="setAutoSync" type="checkbox"><span></span><b>其它版本</b></label></div></div></div>
+
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">RECALL / 召回</span><h2>全局参数</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field switch-field"><label>总开关</label><label class="switch"><input id="setRecallEnabled" type="checkbox"><span></span><b>启用</b></label></div><div class="field"><label for="setRecallMode">触发模式</label><select id="setRecallMode"><option value="hybrid">混合</option><option value="mention">词面</option><option value="semantic">语义</option></select></div><div class="field"><label for="setRecallTopK">条数</label><input id="setRecallTopK" type="number" min="1" max="10"></div><div class="field"><label for="setRecallMin">最低相似度</label><input id="setRecallMin" type="number" min="0" max="1" step="0.01"></div><div class="field"><label for="setRecallStrong">强门槛</label><input id="setRecallStrong" type="number" min="0" max="1" step="0.01"></div><div class="field"><label for="setRecallChars">字符上限</label><input id="setRecallChars" type="number" min="100" max="8000"></div><div class="field"><label for="setRecallTimeout">超时（ms）</label><input id="setRecallTimeout" type="number" min="200" max="10000"></div><div class="field"><label for="setRecallDedupe">去重回合</label><input id="setRecallDedupe" type="number" min="0" max="20"></div><div class="field"><label for="setRecallMaxKbs">单轮最多 KB</label><input id="setRecallMaxKbs" type="number" min="1" max="20"></div><div class="field"><label for="setRecallMinQuery">最小消息长度</label><input id="setRecallMinQuery" type="number" min="1" max="32"></div></div></div>
+
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">DEFAULT ACCESS / 默认权限</span><h2>未单独配置时</h2></div><span class="badge">POLICY</span></div><div class="form-grid"><div class="field"><label for="setAddPolicy">新增</label><select id="setAddPolicy"></select></div><div class="field"><label for="setEditPolicy">编辑</label><select id="setEditPolicy"></select></div><div class="field"><label for="setDeletePolicy">删除</label><select id="setDeletePolicy"></select></div><div class="field span-2"><label for="setOwnerWhitelist">全局允许名单 <small>每行一个 ID</small></label><textarea id="setOwnerWhitelist" rows="3"></textarea></div></div></div>
+
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">STORAGE / WEBUI</span><h2>目录与独立服务</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field span-2"><label for="setKbDir">知识库目录</label><input id="setKbDir" type="text" placeholder="留空 = data/knowledge_base"><span class="hint">切换后立即生效；旧目录不会迁移。</span></div><div class="field switch-field"><label>独立 WebUI</label><label class="switch"><input id="setEnableWebui" type="checkbox"><span></span><b>热启动</b></label></div><div class="field"><label for="setWebHost">绑定地址</label><input id="setWebHost" type="text"></div><div class="field"><label for="setWebPort">端口</label><input id="setWebPort" type="number" min="0" max="65535"></div><div class="field span-2"><label for="setWebToken">访问令牌</label><input id="setWebToken" type="text" placeholder="留空无认证"></div></div></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- TASKS -->
+            <section class="view" data-view="tasks">
+              <div class="view-art" data-art="tasks"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">07</span><span class="chapter-rule"></span><span class="chapter-label">TASKS / 任务</span><span class="chapter-stamp">BACKGROUND</span></div>
+                <div class="page-title"><div><div class="eyebrow">THE ARCHIVE WORKS IN THE DARK</div><h1 data-fx="scan">后台正在整理<br><em>请不要断电</em></h1><p>版本构建、同步与索引维护的进度。</p></div><button class="btn ghost" id="refreshTasksBtn" type="button"><svg><use href="#i-refresh"></use></svg>刷新</button></div>
+                <div class="panel"><div id="taskList"></div></div>
+              </div>
+            </section>
+
+            <!-- WIKI -->
+            <section class="view" data-view="wiki">
+              <div class="view-art" data-art="wiki"></div>
+              <div class="view-inner">
+                <div class="chapter-row"><span class="chapter-no">08</span><span class="chapter-rule"></span><span class="chapter-label">WIKI / 临极档案</span><span class="chapter-stamp">STORY FIRST</span></div>
+                <div class="page-title"><div><div class="eyebrow">A CITY THAT REMEMBERS ITSELF INTO BEING</div><h1 data-fx="decode">虚构的知识？<em>或许吧，这是故事</em></h1><p>临极市没有官方历史，只有八个协会共同承认的版本。你正在读的，是第九个。</p></div></div>
+                <div class="panel wiki-intro">
+                  <div class="panel-head"><div><span class="mini-label">THE LINJI CONCORD / 临极协定</span><h2>八个协会，一座档案馆</h2></div><span class="badge">FICTION</span></div>
+                  <div class="wiki-lore">
+                    <p>十九年前，临极市发生了一场没有被正式命名的「静默事故」。一个街区从地图、账册和新闻里消失，但所有市民都记得自己从哪里回家。为了不再让城市被记忆拖回同一个夜晚，八个协会在档案馆的地下大厅签下《临极协定》：每一方保管一段真相，任何一方都不得独自读完。</p>
+                    <p>临极档案因此成为中立地。紫垣负责编号，Zwei 负责封控，刘负责焚烧，绯灯负责让人活下去，七协会负责让死者开口，六协会负责把不该存在的东西推回黑暗，时计局负责确认你还在正确的世界上，Hana 负责让以上所有人都相信彼此。协定第八条只有一句：<b>第零章不存在。</b></p>
+                    <div class="wiki-timeline" id="wikiTimeline"></div>
+                  </div>
+                </div>
+                <div class="panel zero-panel" id="zeroPanel">
+                  <div class="panel-head"><div><span class="mini-label">CHAPTER ZERO / 第零章</span><h2>不被承认的那一页</h2></div><span class="badge" id="zeroState">UNWRITTEN</span></div>
+                  <p class="zero-lead">第零章不存在——但你可以把它写下来：上传徽章与插画、写自己的文字，选择它代替哪些配色（含随机色）。</p>
+                  <div class="zero-grid" id="zeroForm"></div>
+                </div>
+                <div class="org-grid" id="orgGrid"></div>
+              </div>
+            </section>
+          </div>
+
+          <footer class="ticker" id="ticker">
+            <div class="ticker-side"><span class="rec-dot"></span><b>NOW TRANSMITTING</b><small id="tickerSource">ARCHIVE // PENDING</small></div>
+            <div class="ticker-line"><span class="ticker-prefix" id="tickerPrefix">记录</span><span class="ticker-text" id="tickerText">正在接收信号……</span><span class="caret"></span></div>
+            <div class="ticker-tools"><button type="button" id="tickerNext" title="下一条"><svg><use href="#i-chevron"></use></svg></button><span id="tickerMode">AUTO</span></div>
+          </footer>
+        </div>
+        <div class="channel-wipe" aria-hidden="true"></div>
+      </main>
+      <aside class="side-console" aria-hidden="true"><div class="console-label">CH</div><div class="console-number" id="consoleNumber">01</div><div class="console-knob"><i></i></div><div class="console-slits"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="console-label bottom">VOL</div><div class="console-knob small"><i></i></div></aside>
+    </div>
+    <div class="cabinet-foot"><span>ORIGINAL ARCHIVE TERMINAL // LINJI</span><span class="foot-warn">NO SIGNAL LOST</span><span>BUILD 1.5.0</span></div>
   </div>
 </div>
-
-<div class="modal small" id="modalPrompt" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalPrompt"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head"><div><h3 id="promptTitle">输入</h3><p id="promptText"></p></div></div>
-    <div class="field"><input id="promptInput" type="text" autocomplete="off"></div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalPrompt">取消</button>
-      <button type="button" class="btn solid" id="promptOk">确定</button>
+<section class="appreciate" id="appreciate" aria-hidden="true" aria-label="欣赏模式">
+  <div class="appr-art" id="apprArt"></div>
+  <div class="appr-tint"></div><div class="appr-noise"></div>
+  <header class="appr-head">
+    <div><div class="appr-kicker">APPRECIATION MODE / 欣赏模式</div><h2 id="apprTitle">KiraKB</h2><div class="appr-meta" id="apprMeta">—</div></div>
+    <div class="appr-tools">
+      <div class="appr-themes" id="apprThemes"></div>
+      <button id="apprPrev" type="button" title="上一张">←</button>
+      <button id="apprNext" type="button" title="下一张">→</button>
+      <button id="apprClose" type="button" title="退出 (Esc)">关闭 / ESC</button>
     </div>
-  </div>
-</div>
-
-<div class="modal" id="modalKbInfo" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalKbInfo"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3>知识库信息</h3><p>在档案里显示的标题与描述。</p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalKbInfo"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div class="form-grid">
-      <div class="field wide"><label>显示名称</label><input id="kbInfoName" type="text"></div>
-      <div class="field wide"><label>描述</label><textarea id="kbInfoDesc" rows="4"></textarea></div>
-      <div class="field"><label>历史保留（过程版本数）</label><input id="kbInfoHistoryKeep" type="number" min="1" max="200"></div>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalKbInfo">取消</button>
-      <button type="button" class="btn solid" data-action="save-kb-info"><span data-icon="save" data-size="14"></span><span>保存</span></button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalDoc" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalDoc"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3 id="docModalTitle">条目</h3><p id="docModalMeta"></p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalDoc"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div class="field" style="margin-bottom:14px"><label>标题</label><input id="docName" type="text"></div>
-    <div class="field"><label>内容</label><textarea id="docContent" class="doc-text"></textarea></div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalDoc">取消</button>
-      <button type="button" class="btn solid" data-action="save-doc"><span data-icon="save" data-size="14"></span><span>保存并重建索引</span></button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalVersion" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalVersion"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3>新建版本</h3><p>选择嵌入模型，探测维度后创建。</p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalVersion"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div class="form-grid">
-      <div class="field wide"><label>嵌入模型</label><select class="select" id="versionModel"></select></div>
-      <div class="field wide" id="modelHint"></div>
-      <div class="field"><label>版本标签</label><input id="versionName" type="text" placeholder="例如 bge-m3"></div>
-      <div class="field"><label>维度</label><input id="versionDim" type="number" min="1"></div>
-      <div class="field"><label>&nbsp;</label><button type="button" class="btn" data-action="probe"><span data-icon="zap" data-size="14"></span><span>探测</span></button></div>
-      <div class="field wide"><label>文档（留空 = 全部）</label><div class="check-list" id="versionDocs"></div></div>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalVersion">取消</button>
-      <button type="button" class="btn solid" data-action="create-version-submit"><span data-icon="plus" data-size="14"></span><span>创建版本</span></button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalDeleted" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalDeleted"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3>已删除条目</h3><p>软删除会保留原始内容，可恢复到所有可用版本。</p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalDeleted"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div id="deletedList"></div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalDeleted">关闭</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalEntry" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalEntry"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3 id="entryModalTitle">条目设置</h3><p>单个条目的权限与被动召回。</p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalEntry"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div class="form-grid">
-      <div class="field"><label>编辑策略</label><select class="select" id="entryPolicyEdit"></select></div>
-      <div class="field"><label>删除策略</label><select class="select" id="entryPolicyDelete"></select></div>
-      <div class="field"><label>召回</label><select class="select" id="entryRecallEnabled"></select></div>
-      <div class="field wide"><label>条目允许名单（留空 = 跟随知识库）</label><textarea id="entryAllowUsers" rows="2"></textarea></div>
-      <div class="field wide"><label>召回关键词（逗号分隔）</label><input id="entryKeywords" type="text" placeholder="安装, 部署"></div>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalEntry">取消</button>
-      <button type="button" class="btn solid" data-action="save-entry-settings"><span data-icon="save" data-size="14"></span><span>保存设置</span></button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalHistory" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalHistory"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <div><h3 id="historyTitle">修订历史</h3><p id="historyMeta"></p></div>
-      <button type="button" class="icon-btn" data-action="close-modal" data-modal="modalHistory"><span data-icon="x" data-size="16"></span></button>
-    </div>
-    <div id="historyPanel">
-      <div id="historyList"></div>
-    </div>
-    <div id="historyViewer" class="hidden">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-        <button type="button" class="btn ghost" data-action="history-back"><span data-icon="arrow-left" data-size="13"></span><span>返回</span></button>
-        <span id="historyViewMeta" class="mono faint"></span>
-      </div>
-      <pre id="historyContent" class="doc-text" style="white-space:pre-wrap;max-height:48vh;overflow:auto;resize:none"></pre>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalHistory">关闭</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal small" id="modalBulk" aria-hidden="true">
-  <div class="backdrop" data-action="close-modal" data-modal="modalBulk"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="modal-head"><div><h3>批量策略</h3><p id="bulkSubtitle">应用到选中的条目。</p></div></div>
-    <div class="form-grid">
-      <div class="field wide"><label>编辑策略</label><select class="select" id="bulkEditPolicy"></select></div>
-      <div class="field wide"><label>删除策略</label><select class="select" id="bulkDeletePolicy"></select></div>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" data-action="close-modal" data-modal="modalBulk">取消</button>
-      <button type="button" class="btn solid" data-action="bulk-apply"><span data-icon="check" data-size="14"></span><span>应用</span></button>
-    </div>
-  </div>
-</div>
-
-<div class="toasts" id="toasts"></div>
-
-<script>
-const ICONS = {
-  "activity": "<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\" />",
-  "alert-triangle": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /> <path d=\"M12 9v4\" /> <path d=\"M12 17h.01\" />",
-  "arrow-left": "<path d=\"m12 19-7-7 7-7\" /> <path d=\"M19 12H5\" />",
-  "arrow-right": "<path d=\"M5 12h14\" /> <path d=\"m12 5 7 7-7 7\" />",
-  "arrow-up-right": "<path d=\"M7 7h10v10\" /> <path d=\"M7 17 17 7\" />",
-  "book-open": "<path d=\"M12 5v16\" /> <path d=\"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\" />",
-  "box": "<path d=\"M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z\" /> <path d=\"m3.3 7 8.7 5 8.7-5\" /> <path d=\"M12 22V12\" />",
-  "check": "<path d=\"M20 6 9 17l-5-5\" />",
-  "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
-  "circle-dot": "<circle cx=\"12\" cy=\"12\" r=\"1\" /> <circle cx=\"12\" cy=\"12\" r=\"10\" />",
-  "clock-3": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 6v6h4\" />",
-  "command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
-  "corner-down-right": "<path d=\"m15 10 5 5-5 5\" /> <path d=\"M4 4v7a4 4 0 0 0 4 4h12\" />",
-  "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /> <path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /> <path d=\"M3 12A9 3 0 0 0 21 12\" />",
-  "external-link": "<path d=\"M15 3h6v6\" /> <path d=\"M10 14 21 3\" /> <path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
-  "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\" /> <path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\" /> <path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\" /> <path d=\"m2 2 20 20\" />",
-  "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /> <circle cx=\"12\" cy=\"12\" r=\"3\" />",
-  "git-branch": "<path d=\"M15 6a9 9 0 0 0-9 9V3\" /> <circle cx=\"18\" cy=\"6\" r=\"3\" /> <circle cx=\"6\" cy=\"18\" r=\"3\" />",
-  "hard-drive": "<path d=\"M10 16h.01\" /> <path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\" /> <path d=\"M21.946 12.013H2.054\" /> <path d=\"M6 16h.01\" />",
-  "history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /> <path d=\"M3 3v5h5\" /> <path d=\"M12 7v5l4 2\" />",
-  "info": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 16v-4\" /> <path d=\"M12 8h.01\" />",
-  "key-round": "<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" /> <circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
-  "layers-3": "<path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\" /> <path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\" /> <path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\" />",
-  "library": "<path d=\"m16 6 4 14\" /> <path d=\"M12 6v14\" /> <path d=\"M8 8v12\" /> <path d=\"M4 4v16\" />",
-  "list-checks": "<path d=\"M13 5h8\" /> <path d=\"M13 12h8\" /> <path d=\"M13 19h8\" /> <path d=\"m3 17 2 2 4-4\" /> <path d=\"m3 7 2 2 4-4\" />",
-  "lock-keyhole": "<circle cx=\"12\" cy=\"16\" r=\"1\" /> <rect x=\"3\" y=\"10\" width=\"18\" height=\"12\" rx=\"2\" /> <path d=\"M7 10V7a5 5 0 0 1 10 0v3\" />",
-  "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /> <path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />",
-  "moon": "<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />",
-  "more-horizontal": "<circle cx=\"12\" cy=\"12\" r=\"1\" /> <circle cx=\"19\" cy=\"12\" r=\"1\" /> <circle cx=\"5\" cy=\"12\" r=\"1\" />",
-  "pencil-line": "<path d=\"M13 21h8\" /> <path d=\"m15 5 4 4\" /> <path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" />",
-  "plus": "<path d=\"M5 12h14\" /> <path d=\"M12 5v14\" />",
-  "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\" /> <path d=\"M4 6h.01\" /> <path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\" /> <path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\" /> <path d=\"M12 18h.01\" /> <path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" /> <path d=\"m13.41 10.59 5.66-5.66\" />",
-  "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" /> <path d=\"M21 3v5h-5\" /> <path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" /> <path d=\"M8 16H3v5\" />",
-  "rotate-ccw": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /> <path d=\"M3 3v5h5\" />",
-  "save": "<path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\" /> <path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\" /> <path d=\"M7 3v4a1 1 0 0 0 1 1h7\" />",
-  "search": "<path d=\"m21 21-4.34-4.34\" /> <circle cx=\"11\" cy=\"11\" r=\"8\" />",
-  "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\" /> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\" /> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\" /> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\" />",
-  "settings-2": "<path d=\"M14 17H5\" /> <path d=\"M19 7h-9\" /> <circle cx=\"17\" cy=\"17\" r=\"3\" /> <circle cx=\"7\" cy=\"7\" r=\"3\" />",
-  "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /> <path d=\"m9 12 2 2 4-4\" />",
-  "sliders-horizontal": "<path d=\"M10 5H3\" /> <path d=\"M12 19H3\" /> <path d=\"M14 3v4\" /> <path d=\"M16 17v4\" /> <path d=\"M21 12h-9\" /> <path d=\"M21 19h-5\" /> <path d=\"M21 5h-7\" /> <path d=\"M8 10v4\" /> <path d=\"M8 12H3\" />",
-  "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /> <path d=\"M20 2v4\" /> <path d=\"M22 4h-4\" /> <circle cx=\"4\" cy=\"20\" r=\"2\" />",
-  "square-stack": "<path d=\"M4 10c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2\" /> <path d=\"M10 16c-1.1 0-2-.9-2-2v-4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2\" /> <rect width=\"8\" height=\"8\" x=\"14\" y=\"14\" rx=\"2\" />",
-  "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /> <path d=\"M12 2v2\" /> <path d=\"M12 20v2\" /> <path d=\"m4.93 4.93 1.41 1.41\" /> <path d=\"m17.66 17.66 1.41 1.41\" /> <path d=\"M2 12h2\" /> <path d=\"M20 12h2\" /> <path d=\"m6.34 17.66-1.41 1.41\" /> <path d=\"m19.07 4.93-1.41 1.41\" />",
-  "target": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <circle cx=\"12\" cy=\"12\" r=\"6\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" />",
-  "trash-2": "<path d=\"M10 11v6\" /> <path d=\"M14 11v6\" /> <path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /> <path d=\"M3 6h18\" /> <path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />",
-  "unlock-keyhole": "<circle cx=\"12\" cy=\"16\" r=\"1\" /> <rect width=\"18\" height=\"12\" x=\"3\" y=\"10\" rx=\"2\" /> <path d=\"M7 10V7a5 5 0 0 1 9.33-2.5\" />",
-  "upload-cloud": "<path d=\"M12 13v8\" /> <path d=\"M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242\" /> <path d=\"m8 17 4-4 4 4\" />",
-  "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /> <path d=\"M16 3.128a4 4 0 0 1 0 7.744\" /> <path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" /> <circle cx=\"9\" cy=\"7\" r=\"4\" />",
-  "x": "<path d=\"M18 6 6 18\" /> <path d=\"m6 6 12 12\" />",
-  "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\" />",
-};
-
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-const POLICY_LABELS = {
-  open: "开放",
-  whitelist: "名单",
-  admin: "仅人工",
-  off: "冻结",
-  inherit: "继承"
-};
-const POLICY_OPTIONS_SCOPE = [
-  ["open", "开放 — 任何人"],
-  ["whitelist", "名单 — 指定用户"],
-  ["admin", "仅人工 — WebUI"],
-  ["off", "冻结 — 不可修改"]
-];
-const POLICY_OPTIONS_ENTRY = [["inherit", "继承 — 跟随知识库"]].concat(POLICY_OPTIONS_SCOPE);
-const RECALL_OPTIONS = [["inherit", "继承 — 跟随知识库"], ["on", "强制开启"], ["off", "排除"]];
-
-const state = {
-  kbs: [], current: null, docs: [], versions: [], tasks: [], deleted: [],
-  models: [], globalRecall: { enabled: false }, view: "overview",
-  selected: new Set(), docFilter: "", docFilterKind: "all", editingDoc: null,
-  entryDoc: null, bulkMode: null,
-  defaults: { add: "open", edit: "open", delete: "whitelist" },
-  kbPolicy: { add: "open", edit: "open", delete: "whitelist", allow_users: [] },
-  busy: false, taskTimer: null, settings: null, historyDoc: null, historyList: []
-};
-
-/* ---------- theme (day mode is the default; choice persists) ---------- */
-const THEME_KEY = "kirakb-theme";
-function applyTheme(theme) {
-  const value = theme === "dark" ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", value);
-  try { localStorage.setItem(THEME_KEY, value); } catch (e) { /* private mode */ }
-  const btn = document.getElementById("themeToggle");
-  if (btn) btn.innerHTML = icon(value === "dark" ? "sun" : "moon", 18);
-}
-applyTheme((() => { try { return localStorage.getItem(THEME_KEY) || "light"; } catch (e) { return "light"; } })());
-
-/* ---------- bootstrap / api ---------- */
-const isSidebarMode = typeof window.PluginPageContext !== "undefined"
-  && window.PluginPageContext.ready
-  && window.parent !== window;
-const token = new URLSearchParams(location.search).get("token") || "";
-let bridgeCtx = null;
-
-function pluginIdFromPath() {
-  const m = location.pathname.match(/^\/page\/plugin\/([^\/]+)\//);
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
-async function api(path, opts = {}) {
-  const method = (opts.method || "GET").toUpperCase();
-  let data;
-  if (isSidebarMode) {
-    if (!bridgeCtx) {
-      bridgeCtx = await Promise.race([
-        window.PluginPageContext.ready(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("页面桥接超时")), 8000))
-      ]);
-    }
-    if (method === "GET") data = await window.PluginPageContext.api.get(path);
-    else if (method === "POST") data = await window.PluginPageContext.api.post(path, opts.body ? JSON.parse(opts.body) : {});
-    else if (method === "DELETE") data = await window.PluginPageContext.api.delete(path);
-    else {
-      const res = await fetch("/api/plugin/" + encodeURIComponent(bridgeCtx.pluginId) + path, {
-        method, credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: opts.body || "{}"
-      });
-      data = await res.json();
-    }
-  } else {
-    const pid = pluginIdFromPath();
-    const base = pid ? "/api/plugin/" + encodeURIComponent(pid) : "/api";
-    const headers = { "Content-Type": "application/json" };
-    if (token) headers.Authorization = "Bearer " + token;
-    const res = await fetch(base + path, { ...opts, headers });
-    data = await res.json().catch(() => ({ error: "返回内容不是有效 JSON" }));
-  }
-  if (data && data.error && !opts.allowError) throw new Error(data.error);
-  return data;
-}
-
-async function apiUpload(path, formData) {
-  if (isSidebarMode) {
-    if (!bridgeCtx) bridgeCtx = await window.PluginPageContext.ready();
-    const file = formData.get("file");
-    const data = await window.PluginPageContext.api.upload(path, file, "file");
-    if (data && data.error) throw new Error(data.error);
-    return data;
-  }
-  const pid = pluginIdFromPath();
-  const base = pid ? "/api/plugin/" + encodeURIComponent(pid) : "/api";
-  const headers = token ? { Authorization: "Bearer " + token } : {};
-  const res = await fetch(base + path, { method: "POST", headers, body: formData });
-  const data = await res.json().catch(() => ({ error: "Invalid JSON response" }));
-  if (data && data.error) throw new Error(data.error);
-  return data;
-}
-
-/* ---------- ui utilities ---------- */
-function icon(name, size = 18) {
-  const body = ICONS[name] || ICONS["circle-dot"] || "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-}
-function hydrateIcons(root = document) {
-  $$("[data-icon]", root).forEach(el => {
-    if (el.dataset.hydrated === "1") return;
-    el.innerHTML = icon(el.dataset.icon, Number(el.dataset.size || 18));
-    el.dataset.hydrated = "1";
-  });
-}
-function esc(value) {
-  return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-function fmtBytes(n) {
-  const v = Number(n || 0);
-  if (v < 1024) return v + " B";
-  if (v < 1024 * 1024) return (v / 1024).toFixed(1) + " KB";
-  return (v / 1024 / 1024).toFixed(2) + " MB";
-}
-function fmtTime(ts) {
-  if (!ts) return "—";
-  const d = new Date(Number(ts) * 1000);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-function toast(message, type = "ok") {
-  const el = document.createElement("div");
-  el.className = "toast " + (type === "err" ? "err" : "ok");
-  el.innerHTML = `<span class="bar"></span><div>${esc(message)}</div>`;
-  $("#toasts").appendChild(el);
-  setTimeout(() => {
-    el.style.transition = "opacity .2s, transform .2s";
-    el.style.opacity = "0";
-    el.style.transform = "translateY(6px)";
-    setTimeout(() => el.remove(), 220);
-  }, type === "err" ? 5200 : 3200);
-}
-function openModal(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.add("is-open");
-  el.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-}
-function closeModal(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove("is-open");
-  el.setAttribute("aria-hidden", "true");
-  if (!$$(".modal.is-open").length) document.body.style.overflow = "";
-}
-function closeAllModals() {
-  $$(".modal.is-open").forEach(el => closeModal(el.id));
-}
-function askConfirm(title, text, confirmText = "确认", danger = false) {
-  return new Promise(resolve => {
-    $("#confirmTitle").textContent = title;
-    $("#confirmText").textContent = text || "";
-    const ok = $("#confirmOk");
-    ok.textContent = confirmText;
-    ok.className = "btn " + (danger ? "danger" : "solid");
-    const done = value => {
-      ok.onclick = null;
-      closeModal("modalConfirm");
-      resolve(value);
-    };
-    ok.onclick = () => done(true);
-    $("#modalConfirm").querySelectorAll('[data-action="close-modal"]').forEach(b => {
-      b.onclick = e => { e.preventDefault(); done(false); };
-    });
-    openModal("modalConfirm");
-  });
-}
-function askPrompt(title, text, value = "", placeholder = "") {
-  return new Promise(resolve => {
-    $("#promptTitle").textContent = title;
-    $("#promptText").textContent = text || "";
-    const input = $("#promptInput");
-    input.value = value || "";
-    input.placeholder = placeholder;
-    const done = v => {
-      $("#promptOk").onclick = null;
-      closeModal("modalPrompt");
-      resolve(v);
-    };
-    $("#promptOk").onclick = () => done(input.value.trim());
-    $("#modalPrompt").querySelectorAll('[data-action="close-modal"]').forEach(b => {
-      b.onclick = e => { e.preventDefault(); done(null); };
-    });
-    openModal("modalPrompt");
-    setTimeout(() => input.focus(), 80);
-    input.onkeydown = e => {
-      if (e.key === "Enter") { e.preventDefault(); done(input.value.trim()); }
-      if (e.key === "Escape") { e.preventDefault(); done(null); }
-    };
-  });
-}
-function currentKb() {
-  return state.kbs.find(k => k.kb_id === state.current) || null;
-}
-function defaultPolicy(op) {
-  return state.defaults[op] || "open";
-}
-function kbPolicyValue(op) {
-  const kb = currentKb();
-  const perms = (kb && kb.permissions) || null;
-  return (perms && perms[op]) || defaultPolicy(op);
-}
-function entryPolicyValue(doc, op) {
-  const perms = doc && doc.permissions;
-  if (perms && perms[op] && perms[op] !== "inherit") return perms[op];
-  return kbPolicyValue(op);
-}
-function entryPolicyRaw(doc, op) {
-  return (doc && doc.permissions && doc.permissions[op]) || "inherit";
-}
-function activeVersion() {
-  return state.versions.find(v => v.is_active) || null;
-}
-function badge(text, cls = "") {
-  return `<span class="badge ${cls}"><span class="dot"></span>${esc(text)}</span>`;
-}
-function policyBadge(policy) {
-  if (policy === "admin") return badge("仅人工", "violet");
-  if (policy === "off") return badge("冻结", "danger");
-  if (policy === "whitelist") return badge("名单", "warn");
-  return badge("开放", "cyan");
-}
-
-/* ---------- rendering ---------- */
-function settleReveals() {
-  setTimeout(() => $$(".reveal").forEach(el => el.classList.add("is-settled")), 1200);
-}
-function renderAll() {
-  renderSelect();
-  renderTopbar();
-  renderHero();
-  renderDocs();
-  renderVersions();
-  renderAccess();
-  renderRecall();
-  renderTasks();
-  renderOverviewLists();
-  hydrateIcons();
-  settleReveals();
-}
-
-function renderSelect() {
-  const sel = $("#kbSelect");
-  sel.innerHTML = state.kbs.length
-    ? state.kbs.map(k => `<option value="${esc(k.kb_id)}">${esc(k.display_name)} · ${k.entry_count || 0}</option>`).join("")
-    : `<option value="">还没有知识库</option>`;
-  if (state.current) sel.value = state.current;
-}
-
-function renderTopbar() {
-  const kb = currentKb();
-  const ver = activeVersion();
-  $("#activeBadgeText").textContent = ver ? ver.model_name : "无激活版本";
-  $("#activeBadge").className = "badge " + (ver ? "acid" : "");
-  $$("#railNav button").forEach(b => b.classList.toggle("is-active", b.dataset.view === state.view));
-}
-
-function renderHero() {
-  const kb = currentKb();
-  $("#heroTitle").innerHTML = `Kira<em>KB</em>`;
-  $("#heroKbName").textContent = kb ? ` · ${kb.display_name}` : "";
-  $("#heroDesc").textContent = "知识在这里生长。翻得到，也回得去。";
-  const ver = activeVersion();
-  $("#metaEntries").textContent = String(state.docs.length).padStart(2, "0");
-  $("#metaVersions").textContent = String(state.versions.length).padStart(2, "0");
-  $("#metaModel").textContent = ver ? ver.model_name : "—";
-  const recallOn = (kb && kb.recall && kb.recall.enabled) || false;
-  $("#metaRecall").textContent = recallOn ? "开" : "关";
-  $("#heroIndex").textContent = String(Math.max(1, state.kbs.findIndex(k => k.kb_id === state.current) + 1)).padStart(2, "0");
-
-  animateNumber($("#statEntries"), state.docs.length);
-  animateNumber($("#statVersions"), state.versions.length);
-  $("#statChunks").textContent = ver ? String(ver.dimension) : "—";
-  $("#statRecall").textContent = recallOn ? "开启" : "关闭";
-  $("#statRecall").style.color = recallOn ? "var(--acid)" : "";
-}
-
-function animateNumber(el, value) {
-  if (!el) return;
-  const target = Number(value) || 0;
-  const start = Number(el.textContent) || 0;
-  if (start === target) { el.textContent = String(target); return; }
-  const t0 = performance.now();
-  const dur = 520;
-  const step = now => {
-    const p = Math.min(1, (now - t0) / dur);
-    const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = String(Math.round(start + (target - start) * eased));
-    if (p < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
-function renderOverviewLists() {
-  const recent = state.docs.slice(0, 5);
-  $("#recentCount").textContent = recent.length ? String(state.docs.length) : "";
-  $("#recentList").innerHTML = recent.length
-    ? recent.map((d, i) => `
-      <div class="doc-row reveal" style="--i:${i}">
-        <span class="mono faint">${String(i + 1).padStart(2, "0")}</span>
-        <div><div class="doc-name">${esc(d.name)}</div><div class="doc-meta">${fmtBytes(d.size)} · ${fmtTime(d.updated_at)}</div></div>
-        <div class="badges">${policyBadge(entryPolicyValue(d, "edit"))}${d.recall && d.recall.enabled === true ? badge("召回开", "acid") : ""}</div>
-        <span></span>
-      </div>`).join("")
-    : `<div class="empty"><div class="big">空空如也</div>还没有条目。</div>`;
-
-  const vlist = state.versions.slice(0, 4);
-  $("#versionCount").textContent = String(state.versions.length);
-  $("#overviewVersions").innerHTML = vlist.length
-    ? vlist.map((v, i) => `
-      <div class="doc-row reveal" style="--i:${i}">
-        <span class="mono faint">${v.is_active ? "当前" : String(i + 1).padStart(2, "0")}</span>
-        <div><div class="doc-name">${esc(v.model_name)}</div><div class="doc-meta">${v.dimension} 维 · ${fmtTime(v.created_at)}</div></div>
-        <div class="badges">${v.is_active ? badge("使用中", "acid") : badge("待用", "")}${v.outdated ? badge(v.outdated + " 条待同步", "warn") : ""}</div>
-        <span></span>
-      </div>`).join("")
-    : `<div class="empty"><div class="big">还没有索引</div>创建一个版本后才能检索。</div>`;
-}
-
-function renderDocs() {
-  const filter = state.docFilter.trim().toLowerCase();
-  const kind = state.docFilterKind || "all";
-  const docs = state.docs.filter(d => {
-    if (filter && !d.name.toLowerCase().includes(filter)) return false;
-    if (kind === "locked") return entryPolicyValue(d, "edit") === "admin";
-    if (kind === "frozen") return entryPolicyValue(d, "edit") === "off" || entryPolicyValue(d, "delete") === "off";
-    if (kind === "recall") return d.recall && d.recall.enabled === true;
-    return true;
-  });
-  $("#docCountBadge").textContent = state.docs.length + " 个条目";
-  $("#docList").innerHTML = docs.length
-    ? docs.map((d, i) => {
-      const edit = entryPolicyValue(d, "edit");
-      const del = entryPolicyValue(d, "delete");
-      return `
-      <div class="doc-row reveal" data-id="${esc(d.doc_id)}" style="--i:${i}">
-        <label class="check"><input type="checkbox" data-check="doc" value="${esc(d.doc_id)}" ${state.selected.has(d.doc_id) ? "checked" : ""}></label>
-        <div>
-          <div class="doc-name">${esc(d.name)}</div>
-          <div class="doc-meta">${fmtBytes(d.size)} · 更新于 ${fmtTime(d.updated_at)}</div>
-        </div>
-        <div class="badges">
-          ${policyBadge(edit)}
-          ${del !== edit ? policyBadge(del) : ""}
-          ${d.recall && d.recall.enabled === true ? badge("召回开", "acid") : ""}
-          ${d.recall && d.recall.enabled === false ? badge("召回关", "") : ""}
-          ${d.history && d.history.count > 1 ? badge("历史 " + d.history.count, "violet") : ""}
-          ${d.history && d.history.ai_edited ? badge("AI 改过", "warn") : ""}
-        </div>
-        <div class="row-actions">
-          <button type="button" class="icon-btn" title="查看 / 编辑" data-action="edit-doc" data-id="${esc(d.doc_id)}">${icon("pencil-line", 15)}</button>
-          <button type="button" class="icon-btn" title="修订历史" data-action="history" data-id="${esc(d.doc_id)}">${icon("history", 15)}</button>
-          <button type="button" class="icon-btn acid" title="设置" data-action="entry-settings" data-id="${esc(d.doc_id)}">${icon("sliders-horizontal", 15)}</button>
-          <button type="button" class="icon-btn danger" title="删除" data-action="delete-doc" data-id="${esc(d.doc_id)}">${icon("trash-2", 15)}</button>
-        </div>
-      </div>`;
-    }).join("")
-    : `<div class="empty"><div class="big">这里空空如也</div>${state.docs.length ? "没有匹配的条目。" : "上传文件，或先创建一个版本。"}</div>`;
-  updateBulkBar();
-  settleReveals();
-}
-
-function renderVersions() {
-  const grid = $("#versionGrid");
-  $("#versionHeadCount").textContent = "共 " + state.versions.length + " 个";
-  grid.innerHTML = state.versions.length
-    ? state.versions.map((v, i) => `
-      <article class="version-card reveal ${v.is_active ? "is-active" : ""}" style="--i:${i}">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <h3>${esc(v.model_name)}</h3>
-          <div style="margin-left:auto">${v.is_active ? badge("使用中", "acid") : badge("待用", "")}</div>
-        </div>
-        <div class="v-meta">
-          <span>${v.dimension} 维</span>
-          <span>${fmtTime(v.created_at)}</span>
-          <span>${v.status === "ready" ? "完整" : "不完整"}</span>
-          ${v.outdated ? `<span style="color:var(--warn,#ffb35c)">${v.outdated} 条待同步</span>` : `<span>已是最新</span>`}
-        </div>
-        <div class="v-actions">
-          ${!v.is_active && v.status === "ready" ? `<button type="button" class="btn" data-action="activate-version" data-id="${esc(v.version_id)}">${icon("check", 13)}<span>激活</span></button>` : ""}
-          ${v.status === "ready" ? `<button type="button" class="btn ghost" data-action="sync-version" data-id="${esc(v.version_id)}">${icon("refresh-cw", 13)}<span>同步</span></button>` : ""}
-          ${!v.is_active || v.status !== "ready" ? `<button type="button" class="btn ghost danger" data-action="delete-version" data-id="${esc(v.version_id)}">${icon("trash-2", 13)}</button>` : ""}
-        </div>
-      </article>`).join("")
-    : `<div class="empty" style="grid-column:1/-1"><div class="big">还没有索引</div>创建一个版本后才能检索。</div>`;
-}
-
-function renderAccess() {
-  const kb = currentKb();
-  const perms = (kb && kb.permissions) || {};
-  $("#policyAdd").value = perms.add || defaultPolicy("add");
-  $("#policyEdit").value = perms.edit || defaultPolicy("edit");
-  $("#policyDelete").value = perms.delete || defaultPolicy("delete");
-  $("#kbAllowUsers").value = (perms.allow_users || []).join("\n");
-  $("#entryOverrideCount").textContent = state.docs.length + " 个条目";
-  $("#entryPolicyList").innerHTML = state.docs.length
-    ? state.docs.map((d, i) => {
-      const edit = entryPolicyRaw(d, "edit");
-      const del = entryPolicyRaw(d, "delete");
-      return `
-      <div class="entry-row reveal" style="--i:${i}" data-id="${esc(d.doc_id)}">
-        <div class="name">${esc(d.name)}</div>
-        <select class="select" data-entry-policy="edit" data-id="${esc(d.doc_id)}">
-          ${POLICY_OPTIONS_ENTRY.map(o => `<option value="${o[0]}" ${o[0] === edit ? "selected" : ""}>${o[1]}</option>`).join("")}
-        </select>
-        <select class="select" data-entry-policy="delete" data-id="${esc(d.doc_id)}">
-          ${POLICY_OPTIONS_ENTRY.map(o => `<option value="${o[0]}" ${o[0] === del ? "selected" : ""}>${o[1]}</option>`).join("")}
-        </select>
-      </div>`;
-    }).join("")
-    : `<div class="empty">没有可配置的条目。</div>`;
-}
-
-function renderRecall() {
-  const kb = currentKb();
-  const recall = (kb && kb.recall) || {};
-  const globalOn = state.globalRecall.enabled;
-  $("#globalRecallBadge").textContent = globalOn ? "总开关 开" : "总开关 关";
-  $("#globalRecallBadge").className = "badge " + (globalOn ? "acid" : "");
-  $("#kbRecallEnabled").checked = !!recall.enabled;
-  $("#kbRecallTopK").value = recall.top_k == null ? "" : recall.top_k;
-  $("#kbRecallMinScore").value = recall.min_score == null ? "" : recall.min_score;
-  $("#kbRecallMaxChars").value = recall.max_chars == null ? "" : recall.max_chars;
-
-  $("#entryRecallList").innerHTML = state.docs.length
-    ? state.docs.map((d, i) => {
-      const r = d.recall || { enabled: null, keywords: [] };
-      const value = r.enabled === true ? "on" : r.enabled === false ? "off" : "inherit";
-      return `
-      <div class="entry-row reveal" style="--i:${i}" data-id="${esc(d.doc_id)}">
-        <div class="name">${esc(d.name)}</div>
-        <select class="select" data-entry-recall="mode" data-id="${esc(d.doc_id)}">
-          ${RECALL_OPTIONS.map(o => `<option value="${o[0]}" ${o[0] === value ? "selected" : ""}>${o[1]}</option>`).join("")}
-        </select>
-        <div class="kw">
-          <input type="text" data-entry-recall="keywords" data-id="${esc(d.doc_id)}" value="${esc((r.keywords || []).join(", "))}" placeholder="关键词">
-          <button type="button" class="btn ghost" data-action="save-entry-recall" data-id="${esc(d.doc_id)}">${icon("save", 13)}</button>
-        </div>
-      </div>`;
-    }).join("")
-    : `<div class="empty">No entries to configure.</div>`;
-}
-
-function renderTasks() {
-  const list = $("#taskList");
-  if (!state.tasks.length) {
-    list.innerHTML = `<div class="empty"><div class="big">空闲</div>还没有后台任务。</div>`;
-    return;
-  }
-  list.innerHTML = state.tasks.slice().reverse().map((t, i) => `
-    <div class="task">
-      <div class="task-head">
-        <span class="name">${esc(t.description)}</span>
-        <span class="st ${esc(t.status)}">${({running:"进行中",pending:"等待中",completed:"已完成",failed:"失败"}[t.status] || t.status)}</span>
-      </div>
-      <div class="progress"><i style="width:${Number(t.progress) || 0}%"></i></div>
-      <div class="msg">${esc(t.message || "")} ${t.progress ? "· " + t.progress + "%" : ""}</div>
-    </div>`).join("");
-  settleReveals();
-}
-
-function updateBulkBar() {
-  const bar = $("#bulkBar");
-  const count = state.selected.size;
-  bar.classList.toggle("is-on", count > 0);
-  $("#bulkText").textContent = "已选 " + count + " 条";
-}
-
-/* ---------- data loading ---------- */
-async function refresh(options = {}) {
-  if (state.busy) return;
-  state.busy = true;
-  try {
-    const kbs = await api("/kbs");
-    state.kbs = Array.isArray(kbs) ? kbs : [];
-    if (!state.kbs.length) {
-      state.current = null;
-      state.docs = []; state.versions = [];
-      renderAll();
-      return;
-    }
-    if (!state.current || !state.kbs.some(k => k.kb_id === state.current)) {
-      state.current = state.kbs[0].kb_id;
-    }
-    await Promise.all([loadDocs(), loadVersions(), loadTasks(), loadGlobalRecall()]);
-    const ids = new Set(state.docs.map(d => d.doc_id));
-    state.selected = new Set(Array.from(state.selected).filter(id => ids.has(id)));
-    if (!options.quiet) renderAll();
-  } catch (e) {
-    toast("加载失败：" + e.message, "err");
-  } finally {
-    state.busy = false;
-  }
-}
-
-async function loadDocs() {
-  try {
-    const docs = await api(`/kbs/${encodeURIComponent(state.current)}/documents`);
-    state.docs = Array.isArray(docs) ? docs : [];
-  } catch (e) {
-    state.docs = [];
-    throw e;
-  }
-}
-async function loadVersions() {
-  try {
-    const versions = await api(`/kbs/${encodeURIComponent(state.current)}/versions`);
-    state.versions = Array.isArray(versions) ? versions : [];
-  } catch (e) {
-    state.versions = [];
-    throw e;
-  }
-}
-async function loadTasks() {
-  try {
-    const tasks = await api("/tasks");
-    state.tasks = Array.isArray(tasks) ? tasks : [];
-  } catch (e) {
-    state.tasks = [];
-  }
-}
-async function loadGlobalRecall() {
-  try {
-    state.globalRecall = await api("/recall/global");
-  } catch (e) {
-    state.globalRecall = { enabled: false };
-  }
-}
-
-/* ---------- actions ---------- */
-async function selectKb(kbId) {
-  if (!kbId || kbId === state.current) return;
-  state.current = kbId;
-  state.selected.clear();
-  state.docFilter = "";
-  $("#docFilter").value = "";
-  $("#searchResults").innerHTML = "";
-  $("#searchInput").value = "";
-  try {
-    await Promise.all([loadDocs(), loadVersions()]);
-    renderAll();
-  } catch (e) {
-    toast("切换失败：" + e.message, "err");
-  }
-}
-
-function switchView(view) {
-  state.view = view;
-  $$(".view").forEach(el => el.classList.toggle("is-active", el.id === "view-" + view));
-  $$("#railNav button").forEach(b => b.classList.toggle("is-active", b.dataset.view === view));
-  const section = document.getElementById("view-" + view);
-  if (section) {
-    section.classList.remove("is-entering");
-    void section.offsetWidth;
-    section.classList.add("is-entering");
-  }
-  if (view === "tasks") { loadTasks().then(renderTasks); startTaskPolling(); }
-  else stopTaskPolling();
-  if (view === "settings") { loadSettings().then(renderSettings); }
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-async function createKb() {
-  const name = await askPrompt("新建知识库", "只能使用字母、数字、下划线或连字符。", "", "kira_notes");
-  if (!name) return;
-  if (!/^[-_a-zA-Z0-9]+$/.test(name)) { toast("ID 只能包含字母、数字、下划线或连字符。", "err"); return; }
-  try {
-    await api("/kbs", { method: "POST", body: JSON.stringify({ kb_id: name }) });
-    state.current = name;
-    await refresh();
-    toast("知识库已创建。");
-  } catch (e) { toast("创建失败：" + e.message, "err"); }
-}
-
-async function deleteKb() {
-  const kb = currentKb();
-  if (!kb) return;
-  const ok = await askConfirm("删除知识库", `删除「${kb.display_name}」以及全部条目、版本和索引？此操作不可恢复。`, "删除", true);
-  if (!ok) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(kb.kb_id)}`, { method: "DELETE" });
-    state.current = null;
-    await refresh();
-    toast("知识库已删除。");
-  } catch (e) { toast("删除失败：" + e.message, "err"); }
-}
-
-async function openKbInfo() {
-  const kb = currentKb();
-  if (!kb) { toast("请先创建知识库。", "err"); return; }
-  $("#kbInfoName").value = kb.display_name || "";
-  $("#kbInfoDesc").value = kb.description || "";
-  $("#kbInfoHistoryKeep").value = kb.history_keep || 5;
-  openModal("modalKbInfo");
-}
-
-async function saveKbInfo() {
-  const kb = currentKb();
-  if (!kb) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(kb.kb_id)}/info`, {
-      method: "PUT",
-      body: JSON.stringify({
-        display_name: $("#kbInfoName").value.trim() || kb.kb_id,
-        description: $("#kbInfoDesc").value.trim(),
-        history_keep: Number($("#kbInfoHistoryKeep").value) || null
-      })
-    });
-    closeModal("modalKbInfo");
-    await refresh();
-    toast("已保存。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function uploadFiles(files) {
-  if (!state.current) { toast("请先创建知识库。", "err"); return; }
-  if (!files || !files.length) return;
-  let ok = 0;
-  for (const file of files) {
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      await apiUpload(`/kbs/${encodeURIComponent(state.current)}/documents`, fd);
-      ok += 1;
-    } catch (e) {
-      toast(`上传 ${file.name} 失败：${e.message}`, "err");
-    }
-  }
-  if (ok) toast(`已上传 ${ok} 个文件。`);
-  await refresh();
-}
-
-function openDocEditor(doc) {
-  if (!doc) return;
-  state.editingDoc = doc.doc_id;
-  $("#docModalTitle").textContent = doc.name || "条目";
-  $("#docModalMeta").textContent = `${fmtBytes(doc.size)} · 更新于 ${fmtTime(doc.updated_at)}`;
-  $("#docName").value = doc.name || "";
-  $("#docContent").value = "";
-  openModal("modalDoc");
-  api(`/kbs/${encodeURIComponent(state.current)}/documents/${doc.doc_id}`)
-    .then(data => {
-      $("#docContent").value = data.content || "";
-      if (data.name) $("#docName").value = data.name;
-    })
-    .catch(e => toast("读取失败：" + e.message, "err"));
-}
-
-async function saveDoc() {
-  const id = state.editingDoc;
-  if (!id) return;
-  const name = $("#docName").value.trim();
-  if (!name) { toast("标题不能为空。", "err"); return; }
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ content: $("#docContent").value, name })
-    });
-    closeModal("modalDoc");
-    await refresh();
-    toast("条目已保存并重建索引。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function deleteDoc(id) {
-  const doc = state.docs.find(d => d.doc_id === id);
-  const ok = await askConfirm("删除条目", `软删除「${doc ? doc.name : id}」？之后可以恢复。`, "删除", true);
-  if (!ok) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}`, { method: "DELETE" });
-    state.selected.delete(id);
-    await refresh();
-    toast("条目已删除。");
-  } catch (e) { toast("删除失败：" + e.message, "err"); }
-}
-
-function openEntrySettings(doc) {
-  if (!doc) return;
-  state.entryDoc = doc.doc_id;
-  $("#entryModalTitle").textContent = doc.name || "条目设置";
-  const perms = doc.permissions || {};
-  const recall = doc.recall || { enabled: null, keywords: [] };
-  const fill = (sel, options, value) => {
-    sel.innerHTML = options.map(o => `<option value="${o[0]}" ${o[0] === value ? "selected" : ""}>${o[1]}</option>`).join("");
-  };
-  fill($("#entryPolicyEdit"), POLICY_OPTIONS_ENTRY, perms.edit || "inherit");
-  fill($("#entryPolicyDelete"), POLICY_OPTIONS_ENTRY, perms.delete || "inherit");
-  fill($("#entryRecallEnabled"), RECALL_OPTIONS, recall.enabled === true ? "on" : recall.enabled === false ? "off" : "inherit");
-  $("#entryAllowUsers").value = (perms.allow_users || []).join("\n");
-  $("#entryKeywords").value = (recall.keywords || []).join(", ");
-  openModal("modalEntry");
-}
-
-async function saveEntrySettings() {
-  const id = state.entryDoc;
-  if (!id) return;
-  const users = $("#entryAllowUsers").value.split(/\n+/).map(s => s.trim()).filter(Boolean);
-  const keywords = $("#entryKeywords").value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-  const perms = {
-    edit: $("#entryPolicyEdit").value,
-    delete: $("#entryPolicyDelete").value,
-    allow_users: users
-  };
-  const recall = {
-    enabled: $("#entryRecallEnabled").value === "on" ? true : $("#entryRecallEnabled").value === "off" ? false : null,
-    keywords
-  };
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}/permissions`, {
-      method: "PUT", body: JSON.stringify(perms)
-    });
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}/recall`, {
-      method: "PUT", body: JSON.stringify(recall)
-    });
-    closeModal("modalEntry");
-    await refresh();
-    toast("条目设置已保存。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function saveKbPerms() {
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/permissions`, {
-      method: "PUT",
-      body: JSON.stringify({
-        add: $("#policyAdd").value,
-        edit: $("#policyEdit").value,
-        delete: $("#policyDelete").value,
-        allow_users: $("#kbAllowUsers").value.split(/\n+/).map(s => s.trim()).filter(Boolean)
-      })
-    });
-    await refresh();
-    toast("策略已保存。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function saveKbRecall() {
-  const num = el => el.value === "" ? null : Number(el.value);
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/recall`, {
-      method: "PUT",
-      body: JSON.stringify({
-        enabled: $("#kbRecallEnabled").checked,
-        top_k: num($("#kbRecallTopK")),
-        min_score: num($("#kbRecallMinScore")),
-        max_chars: num($("#kbRecallMaxChars"))
-      })
-    });
-    await refresh();
-    toast("召回设置已保存。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function saveEntryRecall(id) {
-  const mode = document.querySelector(`[data-entry-recall="mode"][data-id="${id}"]`);
-  const kw = document.querySelector(`[data-entry-recall="keywords"][data-id="${id}"]`);
-  if (!mode || !kw) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}/recall`, {
-      method: "PUT",
-      body: JSON.stringify({
-        enabled: mode.value === "on" ? true : mode.value === "off" ? false : null,
-        keywords: kw.value.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-      })
-    });
-    toast("召回已保存。");
-  } catch (e) { toast("保存失败：" + e.message, "err"); }
-}
-
-async function openDeleted() {
-  try {
-    const docs = await api(`/kbs/${encodeURIComponent(state.current)}/documents/deleted`);
-    state.deleted = Array.isArray(docs) ? docs : [];
-    $("#deletedList").innerHTML = state.deleted.length
-      ? state.deleted.map((d, i) => `
-        <div class="doc-row reveal" style="--i:${i}">
-          <span class="mono faint">${String(i + 1).padStart(2, "0")}</span>
-          <div><div class="doc-name">${esc(d.name)}</div><div class="doc-meta">删除于 ${fmtTime(d.updated_at)}</div></div>
-          <div></div>
-          <button type="button" class="btn" data-action="restore-doc" data-id="${esc(d.doc_id)}">${icon("rotate-ccw", 13)}<span>恢复</span></button>
-        </div>`).join("")
-      : `<div class="empty">没有已删除的条目。</div>`;
-    hydrateIcons($("#deletedList"));
-    settleReveals();
-    openModal("modalDeleted");
-  } catch (e) { toast("加载失败：" + e.message, "err"); }
-}
-
-async function restoreDoc(id) {
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}/restore`, { method: "POST" });
-    closeModal("modalDeleted");
-    await refresh();
-    toast("条目已恢复到所有可用版本。");
-  } catch (e) { toast("恢复失败：" + e.message, "err"); }
-}
-
-async function openVersionModal() {
-  if (!state.current) { toast("请先创建知识库。", "err"); return; }
-  $("#versionName").value = "";
-  $("#versionDim").value = "";
-  $("#modelHint").innerHTML = `<span class="faint" style="font-size:11px">正在加载模型…</span>`;
-  try {
-    const data = await api("/embedding-models");
-    state.models = data.models || [];
-    const sel = $("#versionModel");
-    sel.innerHTML = `<option value="">KiraAI 默认嵌入模型</option>` + state.models.map(m =>
-      `<option value="${esc(m.uuid)}">${esc(m.label)}</option>`).join("");
-    if (data.default_uuid && !state.models.some(m => m.uuid === data.default_uuid)) {
-      sel.innerHTML += `<option value="${esc(data.default_uuid)}">${esc(data.default_uuid)}</option>`;
-    }
-    $("#modelHint").innerHTML = data.default_available
-      ? `<span class="faint" style="font-size:11px">留空则使用 KiraAI 默认嵌入模型；点“探测”可获取真实维度。</span>`
-      : `<span style="font-size:11px;color:#ffb35c">未检测到可用嵌入模型，请先配置 default_embedding。</span>`;
-    const docs = state.docs;
-    $("#versionDocs").innerHTML = docs.length
-      ? docs.map(d => `<label><input type="checkbox" value="${esc(d.doc_id)}"> ${esc(d.name)}</label>`).join("")
-      : `<span class="faint" style="font-size:11px;padding:6px">没有文档。版本仍可创建，但内容为空。</span>`;
-    openModal("modalVersion");
-  } catch (e) { toast("加载模型失败：" + e.message, "err"); }
-}
-
-async function probeDimension() {
-  const uuid = $("#versionModel").value || null;
-  const btn = document.querySelector('[data-action="probe"]');
-  if (btn) btn.disabled = true;
-  try {
-    const res = await api("/embedding-models/probe", { method: "POST", body: JSON.stringify({ model_uuid: uuid }), allowError: true });
-    if (res.error) { toast(res.error, "err"); return; }
-    $("#versionDim").value = res.dimension;
-    $("#modelHint").innerHTML = `<span style="font-size:11px;color:var(--acid)">已探测到 ${res.dimension} 维。</span>`;
-  } catch (e) { toast("探测失败：" + e.message, "err"); }
-  finally { if (btn) btn.disabled = false; }
-}
-
-async function createVersionSubmit() {
-  const name = $("#versionName").value.trim();
-  const dim = Number($("#versionDim").value);
-  if (!name) { toast("请填写版本标签。", "err"); return; }
-  if (!dim || dim <= 0) { toast("请探测或填写维度。", "err"); return; }
-  const selected = $$("#versionDocs input:checked").map(i => i.value);
-  const payload = { model_name: name, dimension: dim };
-  const uuid = $("#versionModel").value;
-  if (uuid) payload.model_uuid = uuid;
-  if (selected.length) payload.doc_ids = selected;
-  try {
-    const res = await api(`/kbs/${encodeURIComponent(state.current)}/versions`, {
-      method: "POST", body: JSON.stringify(payload)
-    });
-    closeModal("modalVersion");
-    if (res.task_id) { toast("版本构建已排队。"); switchView("tasks"); }
-    else toast("版本已创建。");
-    await refresh();
-  } catch (e) { toast("创建失败：" + e.message, "err"); }
-}
-
-async function activateVersion(id) {
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/versions/${id}/activate`, { method: "POST" });
-    await refresh();
-    toast("版本已激活。");
-  } catch (e) { toast("激活失败：" + e.message, "err"); }
-}
-
-async function deleteVersion(id) {
-  const ok = await askConfirm("删除版本", "删除这个索引？原始条目会保留，只移除向量。", "删除", true);
-  if (!ok) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/versions/${id}`, { method: "DELETE" });
-    await refresh();
-    toast("版本已删除。");
-  } catch (e) { toast("删除失败：" + e.message, "err"); }
-}
-
-async function syncVersion(id) {
-  try {
-    const res = await api(`/kbs/${encodeURIComponent(state.current)}/versions/${id}/sync`, { method: "POST", body: "{}" });
-    if (res.task_id) { toast("同步已排队。"); switchView("tasks"); }
-    else toast("同步完成。");
-    await refresh();
-  } catch (e) { toast("同步失败：" + e.message, "err"); }
-}
-
-async function runSearch() {
-  const query = $("#searchInput").value.trim();
-  if (!query) return;
-  if (!state.current) { toast("请先选择知识库。", "err"); return; }
-  const box = $("#searchResults");
-  box.innerHTML = `<div class="empty">检索中…</div>`;
-  try {
-    const res = await api(`/kbs/${encodeURIComponent(state.current)}/search`, {
-      method: "POST", body: JSON.stringify({ query, top_k: 8 }), allowError: true
-    });
-    if (res.error) { box.innerHTML = `<div class="empty">${esc(res.error)}</div>`; return; }
-    if (!Array.isArray(res) || !res.length) { box.innerHTML = `<div class="empty">没有找到相关内容。</div>`; return; }
-    settleReveals();
-    box.innerHTML = res.map((r, i) => {
-      const score = Math.max(0, Math.min(1, Number(r.score) || 0));
-      return `<div class="result reveal" style="--i:${i}">
-        <div class="result-head">
-          <span class="name">${esc(r.doc_name || r.doc_id)}</span>
-          ${r.metadata && r.metadata.chunk_index != null ? `<span class="badge">第 ${Number(r.metadata.chunk_index) + 1} 段</span>` : ""}
-          <span class="score">${score.toFixed(2)}</span>
-        </div>
-        <div class="score-bar"><i style="width:${Math.round(score * 100)}%"></i></div>
-        <p>${esc(r.content || "")}</p>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
-  }
-}
-
-function openBulk(mode) {
-  if (!state.selected.size) return;
-  state.bulkMode = mode;
-  $("#bulkSubtitle").textContent = `应用到选中的 ${state.selected.size} 个条目。`;
-  const fill = (sel, value) => {
-    sel.innerHTML = POLICY_OPTIONS_ENTRY.map(o => `<option value="${o[0]}" ${o[0] === value ? "selected" : ""}>${o[1]}</option>`).join("");
-  };
-  fill($("#bulkEditPolicy"), mode === "edit" ? "admin" : "inherit");
-  fill($("#bulkDeletePolicy"), mode === "delete" ? "admin" : "inherit");
-  $("#bulkEditPolicy").disabled = mode !== "edit";
-  $("#bulkDeletePolicy").disabled = mode !== "delete";
-  openModal("modalBulk");
-}
-
-async function applyBulk() {
-  const ids = Array.from(state.selected);
-  if (!ids.length) return;
-  const perms = {};
-  if (state.bulkMode === "edit") perms.edit = $("#bulkEditPolicy").value;
-  if (state.bulkMode === "delete") perms.delete = $("#bulkDeletePolicy").value;
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/permissions`, {
-      method: "PUT", body: JSON.stringify({ doc_ids: ids, permissions: perms })
-    });
-    closeModal("modalBulk");
-    state.selected.clear();
-    await refresh();
-    toast("批量策略已应用。");
-  } catch (e) { toast("应用失败：" + e.message, "err"); }
-}
-
-/* ---------- runtime settings ---------- */
-async function loadSettings() {
-  try {
-    state.settings = await api("/settings");
-  } catch (e) {
-    state.settings = null;
-  }
-}
-
-function fillPolicySelect(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = POLICY_OPTIONS_SCOPE.map(o =>
-    `<option value="${o[0]}" ${o[0] === value ? "selected" : ""}>${o[1]}</option>`).join("");
-}
-
-function renderSettings() {
-  const cfg = state.settings;
-  if (!cfg) return;
-  const val = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
-  const chk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
-  const search = cfg.search || {};
-  val("setTopK", search.default_top_k);
-  val("setChunkSize", search.chunk_size);
-  val("setChunkOverlap", search.chunk_overlap);
-  chk("setHybrid", search.enable_hybrid_search);
-  chk("setStopwords", search.enable_stopwords);
-  chk("setRerank", search.enable_rerank);
-  chk("setLexical", search.enable_lexical_search);
-  chk("setIgnoreTime", search.ignore_time);
-  chk("setAutoInstallDeps", search.auto_install_dependencies);
-  val("setLexicalMin", search.lexical_min_score);
-  const entries = cfg.entries || {};
-  val("setTitleMax", entries.entry_title_max_chars);
-  val("setHistoryKeep", entries.entry_history_keep);
-  chk("setExtraTools", entries.extra_tools_enabled);
-  chk("setAutoSync", entries.auto_sync_versions);
-  const perm = cfg.permission || {};
-  fillPolicySelect("setAddPolicy", perm.default_add_policy || "open");
-  fillPolicySelect("setEditPolicy", perm.default_edit_policy || "open");
-  fillPolicySelect("setDeletePolicy", perm.default_delete_policy || "whitelist");
-  const owner = document.getElementById("setOwnerWhitelist");
-  if (owner) owner.value = (perm.owner_whitelist || []).join("\n");
-  const recall = cfg.recall || {};
-  chk("setRecallEnabled", recall.enabled);
-  val("setRecallMode", recall.mode || "hybrid");
-  val("setRecallTopK", recall.top_k);
-  val("setRecallMin", recall.min_score);
-  val("setRecallStrong", recall.strong_score);
-  val("setRecallChars", recall.max_chars);
-  val("setRecallTimeout", recall.timeout_ms);
-  val("setRecallDedupe", recall.dedupe_turns);
-  val("setRecallMaxKbs", recall.max_kbs);
-  val("setRecallMinQuery", recall.min_query_chars);
-  const storage = cfg.storage || {};
-  val("setKbDir", storage.knowledge_base_dir);
-  const webui = cfg.webui || {};
-  chk("setEnableWebui", webui.enable_webui);
-  val("setWebHost", webui.webui_host);
-  val("setWebPort", webui.webui_port);
-  val("setWebToken", webui.webui_token);
-}
-
-async function saveSettings() {
-  const num = id => {
-    const el = document.getElementById(id);
-    if (!el || el.value === "") return null;
-    return Number(el.value);
-  };
-  const oldDir = (state.settings && state.settings.storage
-    && state.settings.storage.knowledge_base_dir) || "";
-  const newDir = document.getElementById("setKbDir").value.trim();
-  if (newDir && newDir !== oldDir) {
-    const ok = await askConfirm(
-      "切换知识库目录",
-      "会立即切换到新目录，旧目录不会自动迁移。确定？",
-      "切换"
-    );
-    if (!ok) return;
-  }
-  const payload = {
-    search: {
-      enable_hybrid_search: document.getElementById("setHybrid").checked,
-      default_top_k: num("setTopK"),
-      chunk_size: num("setChunkSize"),
-      chunk_overlap: num("setChunkOverlap"),
-      enable_stopwords: document.getElementById("setStopwords").checked,
-      enable_rerank: document.getElementById("setRerank").checked,
-      enable_lexical_search: document.getElementById("setLexical").checked,
-      ignore_time: document.getElementById("setIgnoreTime").checked,
-      auto_install_dependencies: document.getElementById("setAutoInstallDeps").checked,
-      lexical_min_score: num("setLexicalMin")
-    },
-    entries: {
-      entry_title_max_chars: num("setTitleMax"),
-      entry_history_keep: num("setHistoryKeep"),
-      extra_tools_enabled: document.getElementById("setExtraTools").checked,
-      auto_sync_versions: document.getElementById("setAutoSync").checked
-    },
-    permission: {
-      owner_whitelist: document.getElementById("setOwnerWhitelist").value.split(/\n+/).map(v => v.trim()).filter(Boolean),
-      default_add_policy: document.getElementById("setAddPolicy").value,
-      default_edit_policy: document.getElementById("setEditPolicy").value,
-      default_delete_policy: document.getElementById("setDeletePolicy").value
-    },
-    recall: {
-      recall_enabled: document.getElementById("setRecallEnabled").checked,
-      recall_mode: document.getElementById("setRecallMode").value,
-      recall_top_k: num("setRecallTopK"),
-      recall_min_score: num("setRecallMin"),
-      recall_strong_score: num("setRecallStrong"),
-      recall_max_chars: num("setRecallChars"),
-      recall_timeout_ms: num("setRecallTimeout"),
-      recall_dedupe_turns: num("setRecallDedupe"),
-      recall_max_kbs: num("setRecallMaxKbs"),
-      recall_min_query_chars: num("setRecallMinQuery")
-    },
-    storage: {
-      knowledge_base_dir: newDir
-    },
-    webui: {
-      enable_webui: document.getElementById("setEnableWebui").checked,
-      webui_host: document.getElementById("setWebHost").value.trim(),
-      webui_port: num("setWebPort"),
-      webui_token: document.getElementById("setWebToken").value
-    }
-  };
-  try {
-    const res = await api("/settings", { method: "PUT", body: JSON.stringify(payload) });
-    state.settings = res.settings;
-    renderSettings();
-    await refresh({ quiet: true });
-    renderAll();
-    if (res.warnings && res.warnings.length) toast(res.warnings.join(" "), "err");
-    else toast("设置已应用。");
-  } catch (e) { toast("设置失败：" + e.message, "err"); }
-}
-
-/* ---------- revision history ---------- */
-async function openHistory(doc) {
-  if (!doc) return;
-  state.historyDoc = doc.doc_id;
-  $("#historyTitle").textContent = doc.name || "修订历史";
-  $("#historyMeta").textContent = "加载中…";
-  $("#historyList").innerHTML = "";
-  $("#historyPanel").classList.remove("hidden");
-  $("#historyViewer").classList.add("hidden");
-  openModal("modalHistory");
-  try {
-    const data = await api(`/kbs/${encodeURIComponent(state.current)}/documents/${doc.doc_id}/history`);
-    state.historyList = data.revisions || [];
-    renderHistory(data);
-  } catch (e) {
-    $("#historyMeta").textContent = "";
-    $("#historyList").innerHTML = `<div class="empty">${esc(e.message)}</div>`;
-  }
-}
-
-function renderHistory(data) {
-  const rows = data.revisions || [];
-  $("#historyMeta").textContent =
-    `共 ${rows.length} 个版本 · 原始版本永久保留 · 最近保留 ${data.keep} 份`;
-  $("#historyList").innerHTML = rows.length
-    ? rows.map((r, i) => `
-      <div class="doc-row" style="grid-template-columns:36px minmax(0,1fr) auto auto">
-        <span class="mono faint">${String(i + 1).padStart(2, "0")}</span>
-        <div>
-          <div class="doc-name">${fmtTime(r.created_at)}</div>
-          <div class="doc-meta">${r.size} 字符 · ${r.actor === "ai" ? "AI" : r.actor === "human" ? "人工" : "系统"} · ${({create:"创建",edit:"编辑",restore:"回退"}[r.source] || esc(r.source))}${r.restored_from ? " · 来自 " + esc(r.restored_from) : ""}${r.last_restored_at ? " · 回退于 " + fmtTime(r.last_restored_at) : ""}</div>
-        </div>
-        <div class="badges">
-          ${r.is_original ? badge("原始", "acid") : ""}
-          ${r.is_current ? badge("当前", "cyan") : ""}
-          ${r.actor === "ai" ? badge("AI", "violet") : ""}
-          ${r.actor === "human" && !r.is_original ? badge("人工", "") : ""}
-          ${r.last_restored_at ? badge("已回退", "warn") : ""}
-        </div>
-        <div class="row-actions" style="opacity:1">
-          <button type="button" class="icon-btn" title="查看" data-action="history-view" data-id="${esc(r.rev_id)}">${icon("eye", 15)}</button>
-          ${!r.is_current ? `<button type="button" class="icon-btn acid" title="回退到此版本" data-action="history-restore" data-id="${esc(r.rev_id)}">${icon("rotate-ccw", 15)}</button>` : ""}
-        </div>
-      </div>`).join("")
-    : `<div class="empty"><div class="big">还没有历史</div>第一次编辑时会保存原始版本。</div>`;
-  hydrateIcons($("#historyList"));
-  settleReveals();
-}
-
-async function viewRevision(revId) {
-  if (!state.historyDoc || !revId) return;
-  try {
-    const data = await api(`/kbs/${encodeURIComponent(state.current)}/documents/${state.historyDoc}/history/${revId}`);
-    $("#historyViewMeta").textContent = `${revId} · ${fmtTime(data.created_at)} · ${({ai:"AI",human:"人工",system:"系统"}[data.actor] || data.actor)}`;
-    $("#historyContent").textContent = data.content || "";
-    $("#historyPanel").classList.add("hidden");
-    $("#historyViewer").classList.remove("hidden");
-  } catch (e) { toast("读取失败：" + e.message, "err"); }
-}
-
-function historyBack() {
-  $("#historyViewer").classList.add("hidden");
-  $("#historyPanel").classList.remove("hidden");
-}
-
-async function restoreRevision(revId) {
-  if (!state.historyDoc || !revId) return;
-  const ok = await askConfirm("回退版本", "把当前指针移到这个版本？不会新增修订，也不占用备份名额。", "回退");
-  if (!ok) return;
-  try {
-    await api(`/kbs/${encodeURIComponent(state.current)}/documents/${state.historyDoc}/history/${revId}/restore`, {
-      method: "POST", body: "{}"
-    });
-    closeModal("modalHistory");
-    await refresh();
-    toast("版本已回退并重建索引。");
-  } catch (e) { toast("回退失败：" + e.message, "err"); }
-}
-
-/* ---------- task polling ---------- */
-function startTaskPolling() {
-  if (state.taskTimer) return;
-  state.taskTimer = setInterval(async () => {
-    await loadTasks();
-    if (state.view === "tasks") renderTasks();
-    const running = state.tasks.some(t => t.status === "running" || t.status === "pending");
-    if (!running) {
-      stopTaskPolling();
-      await refresh({ quiet: true });
-      renderAll();
-    }
-  }, 2500);
-}
-function stopTaskPolling() {
-  if (state.taskTimer) { clearInterval(state.taskTimer); state.taskTimer = null; }
-}
-
-/* ---------- events ---------- */
-document.addEventListener("click", async (event) => {
-  const el = event.target.closest("[data-action]");
-  if (!el) return;
-  const action = el.dataset.action;
-  const id = el.dataset.id;
-  try {
-    switch (action) {
-      case "nav": switchView(el.dataset.view); break;
-      case "toggle-theme": applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); break;
-      case "close-modal": closeModal(el.dataset.modal); break;
-      case "create-kb": await createKb(); break;
-      case "edit-kb": await openKbInfo(); break;
-      case "save-kb-info": await saveKbInfo(); break;
-      case "delete-kb": await deleteKb(); break;
-      case "open-tab": {
-        const pid = pluginIdFromPath();
-        if (!pid) { window.open(location.href, "_blank"); break; }
-        const q = new URLSearchParams(location.search);
-        q.set("token", token);
-        window.open(`/page/plugin/${encodeURIComponent(pid)}/index?${q.toString()}`, "_blank");
-        break;
-      }
-      case "upload-trigger": $("#fileInput").click(); break;
-      case "open-deleted": await openDeleted(); break;
-      case "restore-doc": await restoreDoc(id); break;
-      case "edit-doc": openDocEditor(state.docs.find(d => d.doc_id === id)); break;
-      case "save-doc": await saveDoc(); break;
-      case "delete-doc": await deleteDoc(id); break;
-      case "entry-settings": openEntrySettings(state.docs.find(d => d.doc_id === id)); break;
-      case "save-entry-settings": await saveEntrySettings(); break;
-      case "save-settings": await saveSettings(); break;
-      case "history": await openHistory(state.docs.find(d => d.doc_id === id)); break;
-      case "history-view": await viewRevision(id); break;
-      case "history-restore": await restoreRevision(id); break;
-      case "history-back": historyBack(); break;
-      case "save-kb-perms": await saveKbPerms(); break;
-      case "save-kb-recall": await saveKbRecall(); break;
-      case "save-entry-recall": await saveEntryRecall(id); break;
-      case "create-version": await openVersionModal(); break;
-      case "probe": await probeDimension(); break;
-      case "create-version-submit": await createVersionSubmit(); break;
-      case "activate-version": await activateVersion(id); break;
-      case "delete-version": await deleteVersion(id); break;
-      case "sync-version": await syncVersion(id); break;
-      case "search": await runSearch(); break;
-      case "bulk-edit": openBulk("edit"); break;
-      case "bulk-delete": openBulk("delete"); break;
-      case "bulk-apply": await applyBulk(); break;
-      case "bulk-clear": state.selected.clear(); renderDocs(); break;
-      default: break;
-    }
-  } catch (e) {
-    toast(e.message || String(e), "err");
-  }
-});
-
-document.addEventListener("change", (event) => {
-  const el = event.target;
-  if (el.dataset.check === "doc") {
-    if (el.checked) state.selected.add(el.value); else state.selected.delete(el.value);
-    updateBulkBar();
-    return;
-  }
-  if (el.dataset.entryPolicy) {
-    const id = el.dataset.id;
-    const op = el.dataset.entryPolicy;
-    api(`/kbs/${encodeURIComponent(state.current)}/documents/${id}/permissions`, {
-      method: "PUT", body: JSON.stringify({ [op]: el.value })
-    }).then(() => { toast("条目策略已更新。"); refresh({ quiet: true }).then(renderAll); })
-      .catch(e => toast("更新失败：" + e.message, "err"));
-    return;
-  }
-  if (el.id === "kbSelect") { selectKb(el.value); }
-});
-
-$("#docFilter").addEventListener("input", (event) => {
-  state.docFilter = event.target.value;
-  renderDocs();
-  hydrateIcons($("#docList"));
-});
-
-$("#docFilterKind").addEventListener("change", (event) => {
-  state.docFilterKind = event.target.value;
-  renderDocs();
-  hydrateIcons($("#docList"));
-});
-
-$("#searchInput").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); runSearch(); }
-});
-
-$("#fileInput").addEventListener("change", (event) => {
-  uploadFiles(event.target.files);
-  event.target.value = "";
-});
-
-const dz = $("#dropzone");
-["dragenter", "dragover"].forEach(name => dz.addEventListener(name, e => {
-  e.preventDefault(); dz.classList.add("is-drag");
-}));
-["dragleave", "drop"].forEach(name => dz.addEventListener(name, e => {
-  e.preventDefault(); dz.classList.remove("is-drag");
-}));
-dz.addEventListener("drop", e => {
-  if (e.dataTransfer && e.dataTransfer.files) uploadFiles(e.dataTransfer.files);
-});
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    const open = $$(".modal.is-open");
-    if (open.length) closeModal(open[open.length - 1].id);
-  }
-});
-
-window.addEventListener("pointermove", (event) => {
-  const glow = $("#cursorGlow");
-  if (!glow) return;
-  glow.style.left = event.clientX + "px";
-  glow.style.top = event.clientY + "px";
-}, { passive: true });
-
-window.addEventListener("scroll", () => {
-  const doc = document.documentElement;
-  const max = doc.scrollHeight - doc.clientHeight;
-  const p = max > 0 ? (doc.scrollTop / max) * 100 : 0;
-  $("#scrollProgress").style.width = p + "%";
-}, { passive: true });
-
-if (isSidebarMode && window.PluginPageContext.onThemeChange) {
-  window.PluginPageContext.onThemeChange(() => {});
-}
-
-hydrateIcons();
-refresh();
-startTaskPolling();
-</script>
+  </header>
+  <div class="appr-caption"><b id="apprCaptionKicker">RECORD / 影像</b><p id="apprCaption">正在接收画面……</p></div>
+  <div class="appr-index" id="apprIndex"></div>
+  <div class="appr-fx" id="apprFx"></div>
+  <footer class="appr-bottom">
+    <div class="ticker-side"><span class="rec-dot"></span><b>NOW TRANSMITTING</b><small id="apprSource">ARCHIVE // PENDING</small></div>
+    <div class="ticker-line"><span class="ticker-prefix" id="apprPrefix">记录</span><span class="ticker-text" id="apprText">正在接收信号……</span><span class="caret"></span></div>
+  </footer>
+</section>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modalRoot"></div>
+<script src="linji-data.js"></script>
+<script src="linji-expanded.js?v=1"></script>
+<script src="textfx.js?v=40"></script>
+<script src="cathode.js?v=80"></script>
 </body>
 </html>

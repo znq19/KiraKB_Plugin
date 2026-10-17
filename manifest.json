@@ -1,7 +1,7 @@
 {
   "display_name": "KiraKB (Knowledge Base)",
   "plugin_id": "kiraKB",
-  "version": "1.3.4",
+  "version": "1.5.0",
   "author": "znq19",
   "description": "为 KiraAI 量身打造的知识库插件：为数字生命提供多版本共存、可检索、可实时编辑并可回退的知识，支持细粒度写权限与按知识库/条目配置的被动召回",
   "repo": "https://github.com/znq19/KiraKB_Plugin",
