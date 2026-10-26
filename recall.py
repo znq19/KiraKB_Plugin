@@ -250,6 +250,23 @@ class RecallEngine:
                 callable(getattr(kb, "lexical_search", None))
                 and callable(getattr(kb, "get_entry_chunks", None))
             )
+            if cfg["lexical_enabled"] and mode == "hybrid":
+                try:
+                    hits = await self._chunk_lexical_hits(item, query, cfg)
+                except Exception as exc:  # noqa: BLE001
+                    self._log("warning", f"[kiraKB] chunk lexical recall failed for "
+                                         f"{kb.kb_id}: {type(exc).__name__}: {exc}")
+                    hits = []
+                if hits:
+                    for hit in hits:
+                        hit["doc_id"] = str((hit.get("metadata") or {}).get("doc_id")
+                                            or hit.get("doc_id") or "")
+                        hit["kb_id"] = kb.kb_id
+                        hit["kb_name"] = kb.display_name
+                        hit["hash"] = _stable_hash(str(hit.get("content") or ""))
+                    per_kb.append(hits)
+                    continue
+
             if cfg["lexical_enabled"] and mode != "semantic" and has_lexical:
                 try:
                     hits = await self._lexical_chunk_hits(item, query, cfg)
@@ -330,6 +347,46 @@ class RecallEngine:
                 (hit["kb_id"], hit["doc_id"], hit["hash"], turn)
             )
         return merged
+
+    async def _chunk_lexical_hits(self, item: Dict[str, Any], query: str,
+                                  cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+        version = item.get("version")
+        if version is None or not callable(getattr(version, "chunk_lexical_search", None)):
+            return []
+        rows = await version.chunk_lexical_search(
+            query,
+            top_k=max(item["top_k"] * 4, 12),
+            allowed_doc_ids=item["allow_doc_ids"],
+            # Passive recall must never pay for a large first-time index build.
+            # New versions have the index ready; older versions use the legacy
+            # entry path until an active search/index build populates it.
+            allow_build=False,
+        )
+        if not rows:
+            return []
+        out: List[Dict[str, Any]] = []
+        for rank, row in enumerate(rows, 1):
+            doc_id = str(row.get("doc_id") or "")
+            content = str(row.get("content") or "")
+            if not doc_id or not content:
+                continue
+            metadata = {
+                "doc_id": doc_id,
+                "title": row.get("title") or "",
+                "heading_path": [row.get("heading")] if row.get("heading") else [],
+                "chunk_index": row.get("chunk_index") or 0,
+            }
+            out.append({
+                "chunk_id": row.get("chunk_id") or "",
+                "doc_id": doc_id,
+                "doc_name": item["doc_names"].get(doc_id) or row.get("title") or doc_id,
+                "content": content,
+                "metadata": metadata,
+                # Keep the same shape as the old lexical path; this is a
+                # lexical hit, not a cosine score.
+                "score": min(0.99, 0.55 + 0.02 * max(0, len(rows) - rank)),
+            })
+        return out
 
     async def _lexical_chunk_hits(self, item: Dict[str, Any], query: str,
                                   cfg: Dict[str, Any]) -> List[Dict[str, Any]]:

@@ -25,6 +25,12 @@
                 "maximum": 400,
                 "hint": "相邻块之间的重叠字符数（必须小于分块大小）；对之后创建的版本与重建生效。"
             },
+            "markdown_heading_context": {
+                "name": "Markdown 标题上下文",
+                "type": "boolean",
+                "default": true,
+                "hint": "Markdown 分块时在文本前加入标题路径；只影响新建/重建版本。"
+            },
             "default_top_k": {
                 "name": "默认检索结果数",
                 "type": "integer",
@@ -101,6 +107,20 @@
                 "type": "switch",
                 "default": true,
                 "hint": "知识库不是越新越重要。默认忽略更新时间；关闭后同分时较新的条目优先。"
+            },
+            "query_rewrite_enabled": {
+                "name": "多查询改写",
+                "type": "boolean",
+                "default": false,
+                "hint": "默认关闭；开启后使用原始查询与轻量改写/分句变体做多路检索并融合。"
+            },
+            "query_rewrite_count": {
+                "name": "改写查询数",
+                "type": "integer",
+                "default": 3,
+                "min": 1,
+                "max": 5,
+                "hint": "仅多查询改写开启时生效。"
             },
             "auto_install_dependencies": {
                 "name": "自动安装运行时依赖",

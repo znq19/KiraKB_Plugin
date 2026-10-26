@@ -148,6 +148,18 @@ class VectorStore:
             result = await session.execute(stmt)
             return {row.id: row for row in result.scalars().all()}
 
+    async def get_all_chunks(self) -> List[Dict[str, Any]]:
+        async with self.async_session() as session:
+            stmt = select(DocumentChunk).order_by(DocumentChunk.id.asc())
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        return [{
+            "chunk_id": row.chunk_id,
+            "doc_name": row.doc_name,
+            "content": row.content,
+            "metadata": json.loads(row.extra) if row.extra else {},
+        } for row in rows]
+
     async def get_chunks_by_ids(self, chunk_ids: List[str]) -> List[Dict[str, Any]]:
         if not chunk_ids:
             return []

@@ -734,3 +734,203 @@ async def probe_embedding(mgr, model_uuid: Optional[str] = None) -> dict:
     if not vectors or not vectors[0]:
         return {"error": "嵌入模型返回了空向量，请检查该模型配置。"}
     return {"dimension": len(vectors[0])}
+
+# ========== Retrieval evaluation ==========
+
+async def retrieval_eval(mgr, kb_id: str, body: dict):
+    """Evaluate one query against the active (or named) version.
+
+    expected may be a chunk_id, or a substring that must appear in the chunk.
+    """
+    kb = await mgr.get_kb(kb_id)
+    if not kb:
+        return {"error": "KB not found"}, 404
+    query = str((body or {}).get("query") or "").strip()
+    expected = str((body or {}).get("expected") or "").strip()
+    if not query:
+        return {"error": "query required"}, 400
+    version_id = str((body or {}).get("version_id") or "").strip()
+    version = None
+    if version_id:
+        version = kb._versions.get(version_id)
+    if version is None:
+        version = kb.active_version
+    if version is None or version.status != "ready":
+        return {"error": "no active ready version"}, 400
+    try:
+        hits = await version.search(query, top_k=5, enable_hybrid=True)
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}, 500
+    rank = None
+    if expected:
+        for index, hit in enumerate(hits, 1):
+            chunk_id = str(hit.get("chunk_id") or "")
+            content = str(hit.get("content") or "")
+            if expected == chunk_id or (expected and expected in content):
+                rank = index
+                break
+    recall = {str(k): bool(rank is not None and rank <= k) for k in (1, 3, 5)}
+    return {
+        "query": query,
+        "expected": expected,
+        "rank": rank,
+        "recall": recall,
+        "results": [
+            {
+                "rank": index,
+                "chunk_id": hit.get("chunk_id") or "",
+                "doc_id": (hit.get("metadata") or {}).get("doc_id") or "",
+                "doc_name": hit.get("doc_name") or "",
+                "content": hit.get("content") or "",
+                "score": float(hit.get("score") or 0),
+            }
+            for index, hit in enumerate(hits, 1)
+        ],
+    }, 200
+
+# ========== URL import ==========
+
+def _url_is_public(url: str) -> tuple[bool, str]:
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "URL 格式不正确"
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False, "只接受 http/https 公网 URL"
+    host = parsed.hostname
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80),
+                                   type=socket.SOCK_STREAM)
+    except Exception as exc:
+        return False, f"域名解析失败: {exc}"
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False, "无法校验目标地址"
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False, "目标地址不是公网地址"
+    return True, ""
+
+
+def _html_to_text(html_text: str) -> str:
+    from html import unescape
+    from html.parser import HTMLParser
+    import re
+
+    class _Extractor(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.out = []
+            self.skip = 0
+            self.in_pre = False
+
+        def handle_starttag(self, tag, attrs):
+            tag = tag.lower()
+            if tag in ("script", "style", "noscript", "svg"):
+                self.skip += 1
+            elif not self.skip and tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.out.append("\n\n" + "#" * int(tag[1]) + " ")
+            elif not self.skip and tag in ("p", "div", "section", "article", "br", "tr"):
+                self.out.append("\n")
+            elif not self.skip and tag == "li":
+                self.out.append("\n- ")
+            elif not self.skip and tag in ("pre", "code"):
+                self.in_pre = True
+                self.out.append("\n```\n")
+
+        def handle_endtag(self, tag):
+            tag = tag.lower()
+            if tag in ("script", "style", "noscript", "svg"):
+                self.skip = max(0, self.skip - 1)
+            elif not self.skip and tag in ("pre", "code") and self.in_pre:
+                self.in_pre = False
+                self.out.append("\n```\n")
+
+        def handle_data(self, data):
+            if not self.skip:
+                self.out.append(data)
+
+    parser = _Extractor()
+    parser.feed(html_text or "")
+    text = unescape("".join(parser.out))
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+async def import_url(mgr, kb_id: str, body: dict):
+    import urllib.request
+    import time as _time
+    from pathlib import Path as _Path
+
+    kb = await mgr.get_kb(kb_id)
+    if not kb:
+        return {"error": "KB not found"}, 404
+    allowed, reason, _ = _human_write_allowed(mgr, kb, None, "add")
+    if not allowed:
+        return {"error": reason}, 403
+    url = str((body or {}).get("url") or "").strip()
+    name = str((body or {}).get("name") or "").strip()
+    if not url:
+        return {"error": "url required"}, 400
+    def _fetch() -> str:
+        import urllib.request
+        import urllib.error
+        ok, reason = _url_is_public(url)
+        if not ok:
+            raise ValueError(reason)
+
+        class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                safe, _why = _url_is_public(newurl)
+                if not safe:
+                    raise urllib.error.HTTPError(newurl, code, "redirect target is not public", headers, fp)
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+        opener = urllib.request.build_opener(_SafeRedirect)
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "KiraKB/1.7 URL importer",
+            "Accept": "text/html,application/xhtml+xml",
+        })
+        with opener.open(req, timeout=15) as resp:
+            raw = resp.read(5 * 1024 * 1024 + 1)
+            charset = resp.headers.get_content_charset() or "utf-8"
+        if len(raw) > 5 * 1024 * 1024:
+            raise ValueError("页面超过 5MB 限制")
+        return raw.decode(charset, errors="replace")
+
+    try:
+        html_text = await asyncio.to_thread(_fetch)
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+    except Exception as exc:
+        return {"error": f"抓取失败: {type(exc).__name__}: {exc}"}, 400
+    text = _html_to_text(html_text)
+    if not text:
+        return {"error": "页面没有可提取的正文"}, 400
+    title = name or url
+    try:
+        from urllib.parse import urlparse
+        title = name or (urlparse(url).hostname or "网页") + (urlparse(url).path or "/")
+    except Exception:
+        pass
+    doc_id = await kb.add_raw_document(text, title, actor="human")
+    try:
+        meta = kb.read_doc_meta(doc_id)
+        meta["source_url"] = url
+        meta["fetched_at"] = _time.time()
+        meta["snapshot"] = f"snapshots/{doc_id}.html"
+        snapshot_dir = kb.kb_dir / "snapshots"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        (snapshot_dir / f"{doc_id}.html").write_text(html_text, encoding="utf-8")
+        kb.write_doc_meta(doc_id, meta)
+    except Exception as exc:
+        logger.warning(f"[kiraKB] URL snapshot save failed: {exc}")
+    active = await kb.get_active_version()
+    if active:
+        await kb._vectorize_document(active, doc_id, text)
+    return {"ok": True, "doc_id": doc_id, "title": title, "chars": len(text)}, 200

@@ -1788,6 +1788,9 @@
     const s = cfg.search || {}; const e = cfg.entries || {}; const p = cfg.permission || {}; const r = cfg.recall || {}; const st = cfg.storage || {}; const w = cfg.webui || {};
     val("setTopK", s.default_top_k); val("setEmbeddingModel", s.embedding_model || ""); val("setRerankModel", s.rerank_model || "");
     val("setChunkSize", s.chunk_size); val("setChunkOverlap", s.chunk_overlap);
+    if ($("#setMarkdownHeading")) $("#setMarkdownHeading").checked = s.markdown_heading_context !== false;
+    if ($("#setQueryRewrite")) $("#setQueryRewrite").checked = !!s.query_rewrite_enabled;
+    val("setQueryRewriteCount", s.query_rewrite_count ?? 3);
     chk("setHybrid", s.enable_hybrid_search); chk("setStopwords", s.enable_stopwords); chk("setRerank", s.enable_rerank); chk("setLexical", s.enable_lexical_search); chk("setIgnoreTime", s.ignore_time); chk("setAutoInstallDeps", s.auto_install_dependencies); val("setLexicalMin", s.lexical_min_score);
     val("setTitleMax", e.entry_title_max_chars); val("setHistoryKeep", e.entry_history_keep); chk("setExtraTools", e.extra_tools_enabled); chk("setAutoSync", e.auto_sync_versions);
     const fill = (id, v) => { const el = $("#" + id); if (!el) return; el.innerHTML = ["open", "whitelist", "admin", "off"].map(x => `<option value="${x}" ${x === v ? "selected" : ""}>${{ open: "开放", whitelist: "名单", admin: "仅人工", off: "冻结" }[x]}</option>`).join(""); };
@@ -1801,6 +1804,9 @@
     return {
       search: {
         enable_hybrid_search: $("#setHybrid").checked, default_top_k: num("setTopK"), chunk_size: num("setChunkSize"), chunk_overlap: num("setChunkOverlap"),
+        markdown_heading_context: $("#setMarkdownHeading") ? $("#setMarkdownHeading").checked : true,
+        query_rewrite_enabled: $("#setQueryRewrite") ? $("#setQueryRewrite").checked : false,
+        query_rewrite_count: num("setQueryRewriteCount"),
         enable_stopwords: $("#setStopwords").checked, enable_rerank: $("#setRerank").checked,
         embedding_model: $("#setEmbeddingModel")?.value || "", rerank_model: $("#setRerankModel")?.value || "",
         enable_lexical_search: $("#setLexical").checked,
@@ -2002,6 +2008,50 @@
       if (res.error) { $("#searchResults").innerHTML = `<div class="inspect-empty">${esc(res.error)}</div>`; return; }
       $("#searchResults").innerHTML = Array.isArray(res) && res.length ? res.map(r => `<div class="result"><div class="result-head"><span class="name">${esc(r.doc_name || r.doc_id)}</span><span class="score">${Number(r.score || 0).toFixed(2)}</span></div><div class="score-bar"><i style="width:${Math.round(Math.max(0, Math.min(1, Number(r.score) || 0)) * 100)}%"></i></div><p>${esc(r.content || "")}</p></div>`).join("") : `<div class="inspect-empty">没有找到相关内容。</div>`;
     } catch (e) { $("#searchResults").innerHTML = `<div class="inspect-empty">${esc(e.message)}</div>`; }
+  }
+
+  async function runEval() {
+    const query = $("#evalQuery")?.value.trim() || "";
+    const expected = $("#evalExpected")?.value.trim() || "";
+    const out = $("#evalResults");
+    if (!query) return toast("请填写测试 Query", "err");
+    if (!state.current) return toast("请先选择知识库", "err");
+    out.innerHTML = `<div class="inspect-empty">评测中……</div>`;
+    try {
+      const res = await api(`/kbs/${encodeURIComponent(state.current)}/retrieval-eval`, {
+        method: "POST", body: JSON.stringify({ query, expected }), allowError: true
+      });
+      if (res.error) { out.innerHTML = `<div class="inspect-empty">${esc(res.error)}</div>`; return; }
+      const recall = res.recall || {};
+      const summary = `<div class="result"><div class="result-head"><span class="name">RECALL</span><span class="score">@1 ${recall["1"] ? "PASS" : "—"} · @3 ${recall["3"] ? "PASS" : "—"} · @5 ${recall["5"] ? "PASS" : "—"}</span></div><p>期望命中排名：${res.rank ?? "未命中"}</p></div>`;
+      const rows = (res.results || []).map(r => `<div class="result"><div class="result-head"><span class="name">#${r.rank} ${esc(r.doc_name || r.doc_id || "")}</span><span class="score">${Number(r.score || 0).toFixed(2)}</span></div><div class="score-bar"><i style="width:${Math.round(Math.max(0, Math.min(1, Number(r.score) || 0)) * 100)}%"></i></div><p>${esc(r.content || "")}</p><small>${esc(r.chunk_id || "")}</small></div>`).join("");
+      out.innerHTML = summary + (rows || `<div class="inspect-empty">没有结果。</div>`);
+    } catch (e) { out.innerHTML = `<div class="inspect-empty">${esc(e.message)}</div>`; }
+  }
+
+  function openUrlImport() {
+    const kb = currentKb();
+    if (!kb) return toast("请先创建知识库", "err");
+    openModal({
+      title: "从 URL 导入", subtitle: "抓取正文并保存网页快照；只接受公网 http/https。", small: true,
+      body: `<div class="field"><label for="importUrl">网页 URL</label><input id="importUrl" placeholder="https://example.com/docs"></div><div class="field"><label for="importName">条目标题（可选）</label><input id="importName" placeholder="留空自动生成"></div>`,
+      footer: `<button class="btn ghost" type="button" data-cancel>取消</button><button class="btn primary" type="button" data-ok>导入</button>`,
+      onMount(root, close) {
+        $("[data-cancel]", root).onclick = close;
+        $("[data-ok]", root).onclick = async () => {
+          const url = $("#importUrl").value.trim();
+          if (!url) return toast("请填写 URL", "err");
+          const btn = $("[data-ok]", root); btn.disabled = true;
+          try {
+            const res = await api(`/kbs/${encodeURIComponent(kb.kb_id)}/import-url`, {
+              method: "POST", body: JSON.stringify({ url, name: $("#importName").value.trim() }), allowError: true
+            });
+            if (res.error) throw new Error(res.error);
+            close(); await refreshAll(); toast(`已导入 ${res.title || "网页"}（${res.chars || 0} 字）。`);
+          } catch (e) { btn.disabled = false; toast("导入失败：" + e.message, "err"); }
+        };
+      }
+    });
   }
 
   /* ---------- quote ---------- */
@@ -2218,6 +2268,8 @@
       }
       if (e.target.closest("#quickCrt")) { applyCrt(state.ui.crt === "off" ? "high" : "off"); queueUiSave(); return; }
       if (e.target.closest("#searchBtn")) return runSearch();
+      if (e.target.closest("#evalRunBtn")) return runEval();
+      if (e.target.closest("#importUrlBtn")) return openUrlImport();
     });
     $("#kbSelect")?.addEventListener("change", e => selectKb(e.target.value));
     $("#docFilter")?.addEventListener("input", e => { state.docFilter = e.target.value; renderCatalog(); });

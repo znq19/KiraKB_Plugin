@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable, Awaitable, Tuple, Set
 
 from .vector_store import VectorStore
-from .chunking import RecursiveCharacterChunker
+from .chunking import RecursiveCharacterChunker, split_document
 from .retriever import HybridRetriever
 from .lexical import LexicalIndex, tokenize, score_token_sets
+from .chunk_lexical import ChunkLexicalIndex
 from . import permissions as perms
 from .recall import normalise_config as normalise_recall_config
 from core.logging_manager import get_logger
@@ -53,6 +54,12 @@ class KnowledgeBaseVersion:
         self.dimension = dimension
         self.created_at = created_at
         self.vector_store = VectorStore(str(self.path / "vectors"))
+        self.chunk_lexical = ChunkLexicalIndex(
+            self.path / "chunk_fts.db",
+            (stopwords_path, default_stopwords_path),
+            logger=logger,
+        )
+        self._chunk_lexical_ready = False
         self.retriever = None
         self.stopwords_path = stopwords_path
         self.default_stopwords_path = default_stopwords_path
@@ -165,8 +172,14 @@ class KnowledgeBaseVersion:
 
     async def search(self, query: str, top_k: int = 5,
                      enable_hybrid: bool = True,
-                     query_embedding: Optional[List[float]] = None) -> List[Dict]:
-        """Embed the query with this version's own model, then search."""
+                     query_embedding: Optional[List[float]] = None,
+                     allowed_doc_ids: Optional[set] = None) -> List[Dict]:
+        """Embed the query with this version's own model, then search.
+
+        Hybrid retrieval now fuses the full-corpus chunk lexical index with
+        the vector index at chunk level. The old in-candidate BM25 retriever
+        remains the fallback when the chunk index is unavailable.
+        """
         if not self._initialized:
             await self.initialize()
         if self.status != "ready":
@@ -175,6 +188,13 @@ class KnowledgeBaseVersion:
             emb = await self.embed_texts([query])
             self.check_dimension(emb)
             query_embedding = emb[0]
+        if enable_hybrid:
+            results = await self._hybrid_chunk_search(
+                query, query_embedding, top_k=top_k,
+                allowed_doc_ids=allowed_doc_ids,
+            )
+            if results:
+                return await self._rerank_results(query, results, top_k)
         results = await self.retriever.search(
             query, query_embedding, top_k=top_k, enable_hybrid=enable_hybrid
         )
@@ -192,6 +212,80 @@ class KnowledgeBaseVersion:
             except Exception as e:
                 logger.warning(f"Rerank failed, falling back to raw results: {e}")
         return results
+
+    async def _hybrid_chunk_search(self, query: str, query_embedding: List[float],
+                                   top_k: int, allowed_doc_ids: Optional[set] = None) -> List[Dict]:
+        pool = max(top_k * 8, 30)
+        try:
+            lexical = await self.chunk_lexical_search(
+                query, top_k=pool, allowed_doc_ids=allowed_doc_ids
+            )
+        except Exception as exc:
+            logger.warning(f"Chunk lexical search failed for {self.version_id}: {exc}")
+            return []
+        vector = await self.vector_store.search_candidates(query_embedding, k=pool)
+        if allowed_doc_ids is not None:
+            vector = [
+                row for row in vector
+                if str((row.get("metadata") or {}).get("doc_id")) in allowed_doc_ids
+            ]
+        if not lexical and not vector:
+            return []
+        scores: Dict[str, float] = {}
+        rows: Dict[str, Dict] = {}
+        for rank, row in enumerate(vector, 1):
+            cid = str(row.get("chunk_id") or "")
+            if not cid:
+                continue
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (60 + rank)
+            rows[cid] = {
+                "chunk_id": cid,
+                "doc_name": row.get("doc_name") or "",
+                "content": row.get("content") or "",
+                "metadata": row.get("metadata") or {},
+                "score": 0.0,
+            }
+        for rank, hit in enumerate(lexical, 1):
+            cid = str(hit.get("chunk_id") or "")
+            if not cid:
+                continue
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (60 + rank)
+            if cid not in rows:
+                rows[cid] = {
+                    "chunk_id": cid,
+                    "doc_name": hit.get("title") or "",
+                    "content": hit.get("content") or "",
+                    "metadata": {
+                        "doc_id": hit.get("doc_id") or "",
+                        "title": hit.get("title") or "",
+                        "heading_path": [hit.get("heading")] if hit.get("heading") else [],
+                        "chunk_index": hit.get("chunk_index") or 0,
+                    },
+                    "score": 0.0,
+                }
+        ordered = sorted(scores, key=lambda cid: (-scores[cid], cid))
+        out = []
+        for cid in ordered[:max(top_k * 2, top_k)]:
+            item = rows[cid]
+            item["score"] = float(scores[cid])
+            out.append(item)
+        return out
+
+    async def _rerank_results(self, query: str, results: List[Dict], top_k: int) -> List[Dict]:
+        if self.enable_rerank and self.rerank_client and results:
+            try:
+                docs = [r["content"] for r in results]
+                reranked = await self.rerank_client.rerank(query, docs, top_n=top_k)
+                ordered = []
+                for rr in reranked:
+                    if 0 <= rr.index < len(results):
+                        results[rr.index]["score"] = float(rr.score)
+                        ordered.append(results[rr.index])
+                if ordered:
+                    return ordered[:top_k]
+            except Exception as e:
+                logger.warning(f"Rerank failed, falling back to raw results: {e}")
+        return results[:top_k]
 
     async def search_cosine(self, query: str, top_k: int = 3,
                             allow_doc_ids: Optional[set] = None,
@@ -244,7 +338,20 @@ class KnowledgeBaseVersion:
         if not self._initialized:
             await self.initialize()
         mapping = self.load_mapping()
+        # Build the index over existing chunks BEFORE adding the new rows;
+        # otherwise ensure_ready() would index the new rows and upsert() would
+        # insert them a second time.
+        await self.ensure_chunk_lexical()
         chunk_ids = await self.vector_store.add_chunks(chunks, embeddings, flush=flush)
+        if chunk_ids:
+            try:
+                await self.chunk_lexical.upsert([
+                    {"chunk_id": chunk_id, **chunk}
+                    for chunk_id, chunk in zip(chunk_ids, chunks)
+                ])
+            except Exception as exc:
+                logger.warning(f"Chunk lexical upsert failed for {self.version_id}: {exc}")
+                self._chunk_lexical_ready = False
         mapping[doc_id] = chunk_ids
         if mapping_sink is not None:
             mapping_sink[doc_id] = chunk_ids
@@ -276,6 +383,32 @@ class KnowledgeBaseVersion:
     async def flush(self) -> None:
         await self.vector_store.flush()
 
+    async def ensure_chunk_lexical(self) -> bool:
+        if self._chunk_lexical_ready:
+            return True
+        if not self._initialized:
+            await self.initialize()
+        chunks = await self.vector_store.get_all_chunks()
+        ok = await self.chunk_lexical.ensure_ready(chunks)
+        self._chunk_lexical_ready = bool(ok)
+        return self._chunk_lexical_ready
+
+    async def chunk_lexical_search(self, query: str, *, top_k: int = 20,
+                                   allowed_doc_ids: Optional[set] = None,
+                                   allow_build: bool = True) -> List[Dict]:
+        if not self._chunk_lexical_ready:
+            if not allow_build:
+                return []
+            if not await self.ensure_chunk_lexical():
+                return []
+        hits = await self.chunk_lexical.search(
+            query, allowed_doc_ids=allowed_doc_ids,
+            limit=max(1, int(top_k)),
+        )
+        for hit in hits:
+            hit["doc_id"] = str(hit.get("doc_id") or "")
+        return hits
+
     async def delete_document(self, doc_id: str) -> int:
         if not self._initialized:
             await self.initialize()
@@ -288,6 +421,12 @@ class KnowledgeBaseVersion:
         if self.vector_store.index is None:
             return 0
         await self.vector_store.delete_by_chunk_ids(chunk_ids)
+        if self._chunk_lexical_ready:
+            try:
+                await self.chunk_lexical.delete_by_doc(doc_id)
+            except Exception as exc:
+                logger.warning(f"Chunk lexical delete failed for {self.version_id}: {exc}")
+                self._chunk_lexical_ready = False
         self.save_mapping(mapping)
         return len(chunk_ids)
 
@@ -319,7 +458,7 @@ class KnowledgeBase:
                  vlm_client=None, rerank_client=None,
                  enable_rerank: bool = False, chunk_size: int = 500,
                  chunk_overlap: int = 50, client_resolver: Callable = None,
-                 history_keep: int = 5):
+                 history_keep: int = 5, markdown_heading_context: bool = True):
         self.kb_id = kb_id
         self.kb_dir = kb_dir
         self.raw_docs_dir = kb_dir / "raw_docs"
@@ -340,6 +479,7 @@ class KnowledgeBase:
         self.enable_rerank = enable_rerank
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.markdown_heading_context = bool(markdown_heading_context)
         self.history_keep = max(1, min(200, int(history_keep or 5)))
 
         self.info = self._load_info()
@@ -910,20 +1050,30 @@ class KnowledgeBase:
                                   save_mapping: bool = True,
                                   mapping_sink: Optional[Dict[str, List[str]]] = None,
                                   save_hash: bool = True) -> int:
-        chunker = RecursiveCharacterChunker(
-            chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
+        meta = self.read_doc_meta(doc_id)
+        original_name = str(meta.get("original_name") or f"{doc_id}.txt")
+        title = original_name
+        for suffix in (".txt", ".md", ".markdown"):
+            if title.lower().endswith(suffix):
+                title = title[: -len(suffix)]
+                break
+        chunks = split_document(
+            content, doc_id=doc_id, title=title, filename=original_name,
+            chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap,
+            include_heading_context=bool(getattr(self, "markdown_heading_context", True)),
         )
-        chunks = chunker.split_text(content)
         if not chunks:
             return 0
-        embeddings = await version.embed_texts(chunks)
+        embeddings = await version.embed_texts([chunk["text"] for chunk in chunks])
         version.check_dimension(embeddings)
         chunk_list = []
-        for i, chunk_text in enumerate(chunks):
+        for chunk in chunks:
+            metadata = dict(chunk.get("metadata") or {})
+            metadata["doc_id"] = doc_id
             chunk_list.append({
-                "doc_name": f"{doc_id}.txt",
-                "content": chunk_text,
-                "metadata": {"doc_id": doc_id, "chunk_index": i}
+                "doc_name": title or f"{doc_id}.txt",
+                "content": chunk["text"],
+                "metadata": metadata,
             })
         await version.add_chunks_for_document(
             doc_id, chunk_list, embeddings, flush=flush,
@@ -1232,13 +1382,21 @@ class KnowledgeBase:
         content = await self.get_raw_document(doc_id)
         if not content:
             return []
-        chunker = RecursiveCharacterChunker(
-            chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
+        meta = self.read_doc_meta(doc_id)
+        original_name = str(meta.get("original_name") or f"{doc_id}.txt")
+        title = original_name
+        for suffix in (".txt", ".md", ".markdown"):
+            if title.lower().endswith(suffix):
+                title = title[: -len(suffix)]
+                break
+        chunks = split_document(
+            content, doc_id=doc_id, title=title, filename=original_name,
+            chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap,
+            include_heading_context=bool(getattr(self, "markdown_heading_context", True)),
         )
-        chunks = chunker.split_text(content)
         return [
-            {"content": text, "metadata": {"doc_id": doc_id, "chunk_index": i}}
-            for i, text in enumerate(chunks[:max(1, limit)])
+            {"content": chunk["text"], "metadata": chunk["metadata"]}
+            for chunk in chunks[:max(1, limit)]
         ]
 
     # ------------------------------------------------------------------
@@ -1340,7 +1498,8 @@ class KnowledgeBaseManager:
                  default_rerank_model_uuid: Optional[str] = None,
                  default_embedding_uuid: Optional[str] = None,
                  default_rerank_uuid: Optional[str] = None,
-                 rerank_model_lister: Callable = None):
+                 rerank_model_lister: Callable = None,
+                 markdown_heading_context: bool = True):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.embedding_client_getter = embedding_client_getter
@@ -1358,6 +1517,7 @@ class KnowledgeBaseManager:
         self.enable_rerank = enable_rerank
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.markdown_heading_context = bool(markdown_heading_context)
         # Single source of truth for "hybrid on?" - the sidebar, the standalone
         # server and the bot tools all read this value.
         self.enable_hybrid = bool(enable_hybrid)
@@ -1391,6 +1551,7 @@ class KnowledgeBaseManager:
             self.chunk_size, self.chunk_overlap,
             client_resolver=self.client_resolver,
             history_keep=self.history_keep,
+            markdown_heading_context=self.markdown_heading_context,
         )
 
     async def create_kb(self, kb_id: str) -> KnowledgeBase:

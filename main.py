@@ -78,6 +78,7 @@ class KiraKBPlugin(BasePlugin):
         self.kb_base_dir = sec_basic.get("knowledge_base_dir") or str(self.data_dir / "knowledge_base")
         self.chunk_size = int(sec_basic.get("chunk_size", 500))
         self.chunk_overlap = int(sec_basic.get("chunk_overlap", 100))
+        self.markdown_heading_context = bool(sec_basic.get("markdown_heading_context", True))
         if self.chunk_overlap >= self.chunk_size:
             self.chunk_overlap = max(0, self.chunk_size // 5)
         self.default_top_k = int(sec_basic.get("default_top_k", 5))
@@ -92,6 +93,8 @@ class KiraKBPlugin(BasePlugin):
         self.history_keep = max(1, min(200, int(sec_basic.get("entry_history_keep", 5))))
         self.enable_lexical_search = bool(sec_basic.get("enable_lexical_search", True))
         self.ignore_time = bool(sec_basic.get("ignore_time", True))
+        self.query_rewrite_enabled = bool(sec_basic.get("query_rewrite_enabled", False))
+        self.query_rewrite_count = clamp_int(sec_basic.get("query_rewrite_count", 3), 3, 1, 5)
         self.auto_install_dependencies = bool(sec_basic.get("auto_install_dependencies", True))
         self.lexical_min_score = max(0, min(20, int(sec_recall.get("lexical_min_score", 2))))
 
@@ -257,6 +260,7 @@ class KiraKBPlugin(BasePlugin):
             enable_rerank=self.enable_rerank,
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
+            markdown_heading_context=self.markdown_heading_context,
             client_resolver=self._resolve_embedding_client,
             model_lister=self._model_lister,
             enable_hybrid=self.enable_hybrid,
@@ -460,6 +464,7 @@ class KiraKBPlugin(BasePlugin):
                 "default_top_k": self.default_top_k,
                 "chunk_size": self.chunk_size,
                 "chunk_overlap": self.chunk_overlap,
+                "markdown_heading_context": self.markdown_heading_context,
                 "enable_stopwords": self.enable_stopwords,
                 "enable_rerank": self.enable_rerank,
                 "embedding_model": self.embedding_model_uuid,
@@ -467,6 +472,8 @@ class KiraKBPlugin(BasePlugin):
                 "enable_lexical_search": self.enable_lexical_search,
                 "lexical_min_score": self.lexical_min_score,
                 "ignore_time": self.ignore_time,
+                "query_rewrite_enabled": self.query_rewrite_enabled,
+                "query_rewrite_count": self.query_rewrite_count,
                 "auto_install_dependencies": self.auto_install_dependencies,
             },
             "entries": {
@@ -551,6 +558,10 @@ class KiraKBPlugin(BasePlugin):
             self.recall_config["ignore_time"] = self.ignore_time
             if self.kb_manager:
                 self.kb_manager.ignore_time = self.ignore_time
+        if "query_rewrite_enabled" in search:
+            self.query_rewrite_enabled = bool(search.get("query_rewrite_enabled"))
+        if "query_rewrite_count" in search:
+            self.query_rewrite_count = clamp_int(search.get("query_rewrite_count"), self.query_rewrite_count, 1, 5)
         if "auto_install_dependencies" in search:
             self.auto_install_dependencies = bool(search.get("auto_install_dependencies"))
             dependencies.configure(
@@ -565,12 +576,16 @@ class KiraKBPlugin(BasePlugin):
             chunk_overlap = max(0, chunk_size // 5)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        if "markdown_heading_context" in search:
+            self.markdown_heading_context = bool(search.get("markdown_heading_context"))
         if self.kb_manager:
             self.kb_manager.chunk_size = chunk_size
             self.kb_manager.chunk_overlap = chunk_overlap
+            self.kb_manager.markdown_heading_context = self.markdown_heading_context
             for kb in self.kb_manager.kbs.values():
                 kb.chunk_size = chunk_size
                 kb.chunk_overlap = chunk_overlap
+                kb.markdown_heading_context = self.markdown_heading_context
         if "enable_stopwords" in search:
             desired = bool(search.get("enable_stopwords"))
             if desired != self.enable_stopwords:
@@ -844,12 +859,15 @@ class KiraKBPlugin(BasePlugin):
                 "default_top_k": self.default_top_k,
                 "chunk_size": self.chunk_size,
                 "chunk_overlap": self.chunk_overlap,
+                "markdown_heading_context": self.markdown_heading_context,
                 "enable_stopwords": self.enable_stopwords,
                 "enable_rerank": self.enable_rerank,
                 "embedding_model": self.embedding_model_uuid,
                 "rerank_model": self.rerank_model_uuid,
                 "enable_lexical_search": self.enable_lexical_search,
                 "ignore_time": self.ignore_time,
+                "query_rewrite_enabled": self.query_rewrite_enabled,
+                "query_rewrite_count": self.query_rewrite_count,
                 "auto_install_dependencies": self.auto_install_dependencies,
                 "entry_title_max_chars": self.entry_title_max_chars,
                 "extra_tools_enabled": self.extra_tools_enabled,
@@ -1192,6 +1210,50 @@ class KiraKBPlugin(BasePlugin):
                 })
         return out[:max(top_n * 2, 10)]
 
+    @staticmethod
+    def _query_variants(query: str, count: int) -> List[str]:
+        """Small deterministic rewrite set; no model call, opt-in only."""
+        base = (query or "").strip()
+        if not base or count <= 1:
+            return [base] if base else []
+        variants = [base]
+        cleaned = re.sub(
+            r"^(?:请问|请|帮我|帮忙|我想知道|想了解|怎么|如何|怎样|能不能|可以)\s*",
+            "", base, flags=re.IGNORECASE,
+        ).strip()
+        if cleaned and cleaned != base and len(cleaned) >= 2:
+            variants.append(cleaned)
+        clauses = [part.strip() for part in re.split(r"[，。；！？,;!?\n]+", base) if part.strip()]
+        if len(clauses) > 1:
+            variants.append(" ".join(clauses))
+        out = []
+        seen = set()
+        for item in variants:
+            key = item.lower()
+            if key not in seen:
+                seen.add(key)
+                out.append(item)
+        return out[:max(1, min(5, int(count)))]
+
+    async def _search_active_variants(self, active, query: str, top_n: int) -> List[Dict]:
+        variants = [query]
+        if self.query_rewrite_enabled:
+            variants = self._query_variants(query, self.query_rewrite_count)
+        if len(variants) <= 1:
+            return await active.search(query, top_k=top_n, enable_hybrid=self.enable_hybrid)
+        fused: Dict[tuple, Dict] = {}
+        for q_rank, variant in enumerate(variants):
+            hits = await active.search(variant, top_k=top_n, enable_hybrid=self.enable_hybrid)
+            for rank, hit in enumerate(hits, 1):
+                key = self._chunk_key(str((hit.get("metadata") or {}).get("doc_id") or ""), hit)
+                score = 1.0 / (60 + rank + 1)
+                if key in fused:
+                    fused[key]["score"] += score
+                else:
+                    fused[key] = {"hit": hit, "score": score}
+        ordered = sorted(fused.values(), key=lambda item: item["score"], reverse=True)
+        return [item["hit"] for item in ordered[:top_n]]
+
     async def _search_one_kb(self, kb, query: str, top_n: int):
         """Return (hits, error, note) for one knowledge base."""
         lexical = []
@@ -1219,9 +1281,7 @@ class KiraKBPlugin(BasePlugin):
         active = kb.active_version
         if active is not None and active.status == "ready":
             try:
-                vector = await active.search(
-                    query, top_k=top_n, enable_hybrid=self.enable_hybrid
-                )
+                vector = await self._search_active_variants(active, query, top_n)
                 vector = self._decorate_hits(kb, vector)
             except EmbeddingDimensionError as exc:
                 error = str(exc)
@@ -1680,6 +1740,18 @@ class KiraKBPlugin(BasePlugin):
     async def api_search(self, kb_id: str, request: Request):
         body = await request.json()
         data, status = await api.search(self.kb_manager, kb_id, body)
+        return _json(data, status)
+
+    @register.api(method="POST", path="/kbs/{kb_id}/import-url", auth=True, summary="Import URL")
+    async def api_import_url(self, kb_id: str, request: Request):
+        body = await request.json()
+        data, status = await api.import_url(self.kb_manager, kb_id, body)
+        return _json(data, status)
+
+    @register.api(method="POST", path="/kbs/{kb_id}/retrieval-eval", auth=True, summary="Evaluate retrieval")
+    async def api_retrieval_eval(self, kb_id: str, request: Request):
+        body = await request.json()
+        data, status = await api.retrieval_eval(self.kb_manager, kb_id, body)
         return _json(data, status)
 
     # ---- Tasks ----

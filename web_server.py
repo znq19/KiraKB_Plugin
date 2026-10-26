@@ -324,6 +324,20 @@ async def api_upload_document(request: Request) -> JSONResponse:
 
 # ========== Search ==========
 
+async def api_import_url(request: Request) -> JSONResponse:
+    body = await request.json()
+    kb_id = request.path_params["kb_id"]
+    mgr = _get_mgr(request)
+    data, status = await api.import_url(mgr, kb_id, body)
+    return JSONResponse(data, status_code=status)
+
+async def api_retrieval_eval(request: Request) -> JSONResponse:
+    body = await request.json()
+    kb_id = request.path_params["kb_id"]
+    mgr = _get_mgr(request)
+    data, status = await api.retrieval_eval(mgr, kb_id, body)
+    return JSONResponse(data, status_code=status)
+
 async def api_search(request: Request) -> JSONResponse:
     body = await request.json()
     data, status = await api.search(_get_mgr(request), request.path_params["kb_id"], body)
@@ -392,6 +406,8 @@ def create_app(kb_manager, token: str = "", default_embedding_uuid: Optional[str
         Route("/api/kbs/{kb_id}/documents/{doc_id}/history/{rev_id}/restore", api_restore_history_revision, methods=["POST"]),
         # Search
         Route("/api/kbs/{kb_id}/search", api_search, methods=["POST"]),
+        Route("/api/kbs/{kb_id}/retrieval-eval", api_retrieval_eval, methods=["POST"]),
+        Route("/api/kbs/{kb_id}/import-url", api_import_url, methods=["POST"]),
         # Embedding models / dimension probing
         Route("/api/embedding-models", api_embedding_models, methods=["GET"]),
         Route("/api/embedding-models/probe", api_probe_embedding, methods=["POST"]),

@@ -25,6 +25,7 @@ try {
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-pencil" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l3.5-.8L20 6.7a1.4 1.4 0 0 0-2-2L5.2 17.5 4 20Z"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4h8v2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
   <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></symbol>
@@ -84,13 +85,14 @@ try {
             <button type="button" id="newKbBtn" title="新建知识库"><svg><use href="#i-plus"></use></svg></button>
             <button type="button" id="editKbBtn" title="编辑当前知识库"><svg><use href="#i-pencil"></use></svg></button>
             <button type="button" id="uploadBtn" title="上传条目"><svg><use href="#i-upload"></use></svg></button>
+            <button type="button" id="importUrlBtn" title="从 URL 导入网页"><svg><use href="#i-link"></use></svg></button>
             <button type="button" id="deleteKbBtn" class="danger" title="删除当前知识库"><svg><use href="#i-trash"></use></svg></button>
           </div>
           <input id="fileInput" type="file" multiple accept=".txt,.md,.markdown,.pdf,.docx,.xlsx,.pptx" hidden>
           <div class="signal-meter"><i></i><i></i><i></i><i></i><i></i><span>STABLE</span></div>
         </div>
         <div class="rail-foot">
-          <span>KIRAKB / <b id="pluginVersion">1.6.2</b></span>
+          <span>KIRAKB / <b id="pluginVersion">1.7.0</b></span>
           <button id="quickCrt" type="button" aria-pressed="true"><svg><use href="#i-power"></use></svg><span>CRT</span></button>
         </div>
       </aside>
@@ -188,6 +190,9 @@ try {
                 <div class="chapter-row"><span class="chapter-no">03</span><span class="chapter-rule"></span><span class="chapter-label">SEARCH / 检索</span><span class="chapter-stamp">SIGNAL QUERY</span></div>
                 <div class="page-title"><div><div class="eyebrow">THE ARCHIVE ANSWERS</div><h1 data-fx="decode">不要等它发问，<em>先检索</em></h1><p>从词法到语义，找到那条被遗忘的记录。</p></div></div>
                 <div class="panel search-panel"><div class="search-big"><svg><use href="#i-search"></use></svg><input id="searchInput" type="text" placeholder="想查什么？" autocomplete="off"><button class="btn primary" id="searchBtn" type="button">检索</button></div><div class="search-meta"><span>MODE <b id="searchMode">向量</b></span><span>RANGE <b>当前知识库</b></span><span>ENTER 检索</span></div><div id="searchResults" class="search-results"><div class="inspect-empty">输入关键词，按下回车。</div></div></div>
+                <div class="panel eval-panel" id="evalPanel"><div class="panel-head"><div><span class="mini-label">RETRIEVAL EVAL / 检索评测</span><h2>Recall @ 1 / 3 / 5</h2></div><span class="badge">OFFLINE CHECK</span></div>
+                  <div class="form-grid"><div class="field"><label for="evalQuery">测试 Query</label><input id="evalQuery" placeholder="例如：怎么安装插件"></div><div class="field"><label for="evalExpected">期望 Chunk ID 或文本片段</label><input id="evalExpected" placeholder="chunk_id 或答案片段"></div></div>
+                  <div class="panel-foot"><button class="btn primary" id="evalRunBtn" type="button">运行评测</button></div><div id="evalResults" class="search-results"><div class="inspect-empty">输入 query 与期望 chunk，检查召回排名。</div></div></div>
               </div>
             </section>
 
@@ -245,7 +250,7 @@ try {
 
                   <div class="panel span-2 wall-vault-panel"><div class="panel-head wall-vault-head"><div><span class="mini-label">WALLPAPER VAULT / 壁纸轮换</span><h2>挑你想看的那些</h2></div><span class="badge" id="wallVaultCount">0 / 0</span></div><div class="wall-vault-tabs" id="wallVaultTabs"></div><div class="wall-vault" id="wallVault"></div><div class="wall-vault-foot"><span class="hint" id="wallVaultHint">默认全部启用；点缩略图切换。</span><button class="btn small ghost" id="wallAllBtn" type="button">全部启用</button><button class="btn small ghost" id="wallNoneBtn" type="button">全部关闭</button><label class="switch" title="鼠标移动时壁纸轻微跟随"><input id="setUiParallax" type="checkbox"><span></span><b>视点视差</b></label><label class="switch" title="壁纸自动轮换"><input id="setUiWallRotate" type="checkbox"><span></span><b>自动轮换</b></label><span class="field-inline"><input id="setUiWallInterval" type="number" min="5" max="120"><small>秒</small></span></div></div>
 
-                  <div class="panel"><div class="panel-head"><div><span class="mini-label">SEARCH / 检索</span><h2>索引参数</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field"><label for="setTopK">默认检索条数</label><input id="setTopK" type="number" min="1" max="20"></div><div class="field"><label for="setChunkSize">分块大小</label><input id="setChunkSize" type="number" min="100" max="8000"></div><div class="field"><label for="setChunkOverlap">分块重叠</label><input id="setChunkOverlap" type="number" min="0" max="7999"></div><div class="field"><label for="setLexicalMin">内容命中门槛</label><input id="setLexicalMin" type="number" min="0" max="20"></div><div class="field switch-field"><label>混合检索</label><label class="switch"><input id="setHybrid" type="checkbox"><span></span><b>BM25 + 向量</b></label></div><div class="field switch-field"><label>停用词过滤</label><label class="switch"><input id="setStopwords" type="checkbox"><span></span><b>BM25</b></label></div><div class="field switch-field"><label>重排序</label><label class="switch"><input id="setRerank" type="checkbox"><span></span><b>使用下方模型</b></label></div>
+                  <div class="panel"><div class="panel-head"><div><span class="mini-label">SEARCH / 检索</span><h2>索引参数</h2></div><span class="badge">HOT</span></div><div class="form-grid"><div class="field"><label for="setTopK">默认检索条数</label><input id="setTopK" type="number" min="1" max="20"></div><div class="field"><label for="setChunkSize">分块大小</label><input id="setChunkSize" type="number" min="100" max="8000"></div><div class="field"><label for="setChunkOverlap">分块重叠</label><input id="setChunkOverlap" type="number" min="0" max="7999"></div><div class="field switch-field"><label>Markdown 标题上下文</label><label class="switch"><input id="setMarkdownHeading" type="checkbox"><span></span><b>拼入 embedding</b></label></div><div class="field switch-field"><label>多查询改写</label><label class="switch"><input id="setQueryRewrite" type="checkbox"><span></span><b>默认关闭</b></label></div><div class="field"><label for="setQueryRewriteCount">改写查询数</label><input id="setQueryRewriteCount" type="number" min="1" max="5"></div><div class="field"><label for="setLexicalMin">内容命中门槛</label><input id="setLexicalMin" type="number" min="0" max="20"></div><div class="field switch-field"><label>混合检索</label><label class="switch"><input id="setHybrid" type="checkbox"><span></span><b>BM25 + 向量</b></label></div><div class="field switch-field"><label>停用词过滤</label><label class="switch"><input id="setStopwords" type="checkbox"><span></span><b>BM25</b></label></div><div class="field switch-field"><label>重排序</label><label class="switch"><input id="setRerank" type="checkbox"><span></span><b>使用下方模型</b></label></div>
                     <div class="field"><label for="setEmbeddingModel">向量模型</label><select id="setEmbeddingModel"><option value="">跟随 KiraAI 默认</option></select><span class="hint">用于新建版本；已有版本保留各自模型。</span></div>
                     <div class="field"><label for="setRerankModel">重排序模型</label><select id="setRerankModel"><option value="">跟随 KiraAI 默认</option></select><span class="hint">启用重排序时生效。</span></div><div class="field switch-field"><label>词法召回</label><label class="switch"><input id="setLexical" type="checkbox"><span></span><b>标题 + 内容</b></label></div><div class="field switch-field"><label>忽略时间因素</label><label class="switch"><input id="setIgnoreTime" type="checkbox"><span></span><b>推荐开启</b></label></div><div class="field switch-field"><label>自动安装依赖</label><label class="switch"><input id="setAutoInstallDeps" type="checkbox"><span></span><b>运行时</b></label></div></div></div>
 
@@ -304,7 +309,7 @@ try {
       </main>
       <aside class="side-console" aria-hidden="true"><div class="console-label">CH</div><div class="console-number" id="consoleNumber">01</div><div class="console-knob"><i></i></div><div class="console-slits"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="console-label bottom">VOL</div><div class="console-knob small"><i></i></div></aside>
     </div>
-    <div class="cabinet-foot"><span>ORIGINAL ARCHIVE TERMINAL // LINJI</span><span class="foot-warn">NO SIGNAL LOST</span><span>BUILD 1.6.2</span></div>
+    <div class="cabinet-foot"><span>ORIGINAL ARCHIVE TERMINAL // LINJI</span><span class="foot-warn">NO SIGNAL LOST</span><span>BUILD 1.7.0</span></div>
   </div>
 </div>
 <section class="appreciate" id="appreciate" aria-hidden="true" aria-label="欣赏模式">
@@ -353,6 +358,6 @@ try {
 <script src="linji-meta.js?v=4"></script>
 <script src="linji-final.js?v=5"></script>
 <script src="textfx.js?v=40"></script>
-<script src="cathode.js?v=157"></script>
+<script src="cathode.js?v=158"></script>
 </body>
 </html>

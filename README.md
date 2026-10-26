@@ -4,7 +4,7 @@
 
 > 为 KiraAI 量身打造的知识库插件：为数字生命提供多版本共存、可检索、可实时编辑并可回退的知识，支持细粒度写权限与按知识库/条目配置的被动召回。
 
-当前版本：**1.6.2**。独立分享预览可基于 `web/` 单独构建，不随插件仓库分发。
+当前版本：**1.7.0**。独立分享预览可基于 `web/` 单独构建，不随插件仓库分发。
 
 ---
 
@@ -121,9 +121,10 @@ python3 tests/test_history.py
 python3 tests/test_lexical.py
 python3 tests/test_settings.py
 python3 tests/test_dependencies.py
+python3 tests/test_retrieval_quality.py
 ```
 
-全部通过后分别输出 `42/42`、`28/28`、`36/36`、`44/44`、`32/32`、`22/22`、`57/57`、`16/16`，合计 **277/277**。测试使用桩 `core` 包，不需要 KiraAI 本体。
+全部通过后分别输出 `42/42`、`28/28`、`36/36`、`44/44`、`32/32`、`22/22`、`57/57`、`16/16`、`11/11`，合计 **288/288**。测试使用桩 `core` 包，不需要 KiraAI 本体。
 
 ---
 
@@ -466,6 +467,17 @@ data/knowledge_base/
 
 <details>
 <summary>点击展开更新日志</summary>
+
+### 1.7.0
+
+- 检索架构升级：每个版本独立的 chunk 级 FTS5 词法索引，保留标题、heading path、chunk_index、char range；主动检索使用向量 + chunk 词法 RRF。
+- Markdown-aware 分块：按标题层级组织，保留代码块/表格边界；可选 heading path 拼入 embedding。旧版本不自动重切。
+- 被动召回新增 chunk 词法补充通道，带索引预建/懒建、权限过滤与旧路径 fail-open 回退。
+- 检索评测面板：录入 query 与期望 chunk/片段，输出 recall@1/3/5。
+- 可选多查询改写（默认关闭）：轻量规则变体 + RRF，默认不增加额外模型调用。
+- 可选 URL 导入：公网校验、HTML 正文提取、网页快照保存与来源元数据；快照随文档保存。
+- 参考 AstrBot 的 dense/sparse chunk 融合、Markdown 分块和检索测试思路，保持 KiraKB 的多版本/权限/被动召回边界。
+- 版本 1.7.0。
 
 ### 1.6.2
 
